@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import settings
-from app.api import diagnosis
+from app.api import diagnosis, conduction_disorder
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -24,6 +24,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(diagnosis.router, prefix="/api", tags=["diagnosis"])
+app.include_router(conduction_disorder.router, prefix="/api", tags=["conduction-disorder"])
 
 
 @app.get("/")
