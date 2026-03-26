@@ -6,8 +6,10 @@ python-multipart==0.0.9
 
 # 数据库
 sqlalchemy==2.0.25
+greenlet==3.2.4
 aiosqlite==0.20.0
 asyncpg==0.29.0
+asyncmy==0.2.10
 alembic==1.13.1
 psycopg2-binary==2.9.9
 
@@ -42,7 +44,7 @@ pydantic-settings==2.2.1
 black==24.1.1
 isort==5.13.2
 mypy==1.8.0
-pytest==8.0.0
+pytest==7.4.4
 pytest-asyncio==0.23.4
 httpx==0.26.0
 

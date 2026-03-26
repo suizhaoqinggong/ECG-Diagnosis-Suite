@@ -5,6 +5,8 @@ set -e
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="$PROJECT_ROOT/backend"
+VENV_DIR="$BACKEND_DIR/.venv"
+LEGACY_VENV_DIR="$BACKEND_DIR/venv"
 DEFAULT_CHECKPOINT="$PROJECT_ROOT/models/checkpoints/best.ckpt"
 ALT_CHECKPOINT="$PROJECT_ROOT/models/weights/best.ckpt"
 
@@ -20,9 +22,13 @@ if [ ! -f "$BACKEND_DIR/app/main.py" ]; then
 fi
 
 # 检查Python环境
-if [ ! -d "$BACKEND_DIR/venv" ]; then
+if [ -d "$VENV_DIR" ]; then
+    PYTHON_BIN="$VENV_DIR/bin/python"
+elif [ -d "$LEGACY_VENV_DIR" ]; then
+    PYTHON_BIN="$LEGACY_VENV_DIR/bin/python"
+else
     echo "❌ 错误：虚拟环境不存在，请先运行:"
-    echo "   cd \"$BACKEND_DIR\" && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+    echo "   cd \"$BACKEND_DIR\" && uv venv .venv --python 3.11 && uv pip install --python .venv/bin/python -r requirements.txt"
     exit 1
 fi
 
@@ -47,7 +53,7 @@ echo ""
 # 启动后端
 echo "🚀 启动后端服务..."
 cd "$BACKEND_DIR"
-MODEL_CHECKPOINT_PATH="$MODEL_CHECKPOINT_PATH" venv/bin/python -m uvicorn app.main:app --reload --port 8000 > /tmp/ecg_backend.log 2>&1 &
+MODEL_CHECKPOINT_PATH="$MODEL_CHECKPOINT_PATH" "$PYTHON_BIN" -m uvicorn app.main:app --reload --port 8000 > /tmp/ecg_backend.log 2>&1 &
 BACKEND_PID=$!
 echo "   后端PID: $BACKEND_PID"
 echo "   后端日志: /tmp/ecg_backend.log"

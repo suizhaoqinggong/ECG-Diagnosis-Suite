@@ -5,6 +5,7 @@ __pycache__/
 *.so
 .Python
 venv/
+.venv/
 env/
 ENV/
 *.egg-info/
@@ -49,10 +50,12 @@ logs/
 # 上传文件（开发时忽略）
 data/uploads/*
 !data/uploads/.gitkeep
+backend/data/uploads/*
 
 # 生成的报告
 data/reports/*
 !data/reports/.gitkeep
+backend/data/reports/*
 
 # 模型文件（太大不上传）
 models/weights/*.pth

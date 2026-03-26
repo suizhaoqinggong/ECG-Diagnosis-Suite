@@ -1,272 +1,201 @@
 # ECG Diagnosis Suite
 
-<div align="center">
+ECG Diagnosis Suite is a FastAPI + React project for ECG image and signal classification. The current repository is an engineering-focused MVP: the end-to-end diagnosis flow is wired up, local MySQL support is configured, and Docker Compose now uses MySQL as the database service.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![Python](https://img.shields.io/badge/python-3.10+-green.svg)
-![React](https://img.shields.io/badge/react-18+-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-orange.svg)
+## Current Status
 
-**智能心电图诊断系统 - AI-Powered ECG Diagnosis Platform**
+- Frontend upload flow is available for ECG images and `.dat + .hea` pairs.
+- Backend diagnosis APIs, history persistence, and model loading are implemented.
+- Local development now uses `uv` for the Python environment and MySQL for persistence.
+- Docker Compose has been switched from PostgreSQL to MySQL.
+- PDF export code exists in the backend, but the frontend export action is still not connected.
 
-[English](#english) | [中文](#中文)
+## Main Features
 
-</div>
+- ECG image upload: `.png`, `.jpg`, `.jpeg`
+- ECG signal upload: `.dat` + `.hea`
+- AI diagnosis with CardioFormer-based service
+- Conduction disorder detection endpoint
+- Diagnosis history persistence
+- Local MySQL and Docker MySQL support
 
----
+## Tech Stack
 
-## 中文
+### Frontend
 
-### 📖 项目简介
+- React 18
+- TypeScript
+- Vite
+- Tailwind CSS
+- Axios
 
-**ECG Diagnosis Suite** 是一个基于深度学习的心电图智能诊断系统，用户只需上传ECG波形图，即可获得AI诊断结果和个性化健康报告。
+### Backend
 
-### ✨ 核心功能
+- FastAPI
+- SQLAlchemy
+- MySQL / SQLite / PostgreSQL-compatible configuration
+- PyTorch
+- OpenCV
 
-- 🖼️ **图片上传** - 支持拖拽、点击上传、手机拍照
-- 🤖 **AI诊断** - 基于深度学习模型的智能分类
-- 📊 **结果可视化** - 置信度展示、症状解释
-- 📄 **健康报告** - 自动生成PDF诊断报告
-- 🎨 **现代UI** - 响应式设计，支持移动端
+### Environment
 
-### 🛠️ 技术栈
+- `uv` for Python environment management
+- Homebrew MySQL for local development
+- Docker Compose for containerized deployment
 
-#### 前端
-- **React 18** + TypeScript
-- **Tailwind CSS** - 样式框架
-- **Vite** - 构建工具
-- **Axios** - HTTP客户端
+## Repository Layout
 
-#### 后端
-- **FastAPI** - 高性能Web框架
-- **PyTorch** - 深度学习框架
-- **OpenCV** - 图像处理
-- **PostgreSQL** - 数据库
-
-#### AI模型
-- **PyTorch** - 模型训练
-- **ONNX Runtime** - 模型推理优化
-
-### 📁 项目结构
-
-```
+```text
 ECG-Diagnosis-Suite/
-├── frontend/                # 前端项目
-│   ├── src/
-│   │   ├── components/     # React组件
-│   │   ├── pages/          # 页面
-│   │   ├── api/            # API接口
-│   │   └── utils/          # 工具函数
-│   ├── public/             # 静态资源
-│   └── package.json
-│
-├── backend/                 # 后端项目
-│   ├── app/
-│   │   ├── api/            # API路由
-│   │   ├── models/         # 数据库模型
-│   │   ├── services/       # 业务逻辑
-│   │   └── core/           # 核心配置
-│   ├── ml/                 # 机器学习模块
-│   │   ├── models/         # 模型定义
-│   │   └── preprocessing/  # 数据预处理
-│   └── requirements.txt
-│
-├── models/                  # 模型文件
-│   ├── weights/            # 训练好的权重
-│   └── checkpoints/        # 训练检查点（默认读取 best.ckpt）
-│
-├── data/                    # 数据目录
-│   ├── uploads/            # 上传的图片
-│   ├── reports/            # 生成的报告
-│   └── datasets/           # 数据集
-│
-├── docs/                    # 文档
-├── scripts/                 # 脚本工具
-├── tests/                   # 测试文件
-└── README.md
+├── backend/                 # FastAPI backend
+│   ├── app/                 # API, config, DB models, services
+│   ├── ml/                  # ECG model and preprocessing code
+│   ├── .env.example         # Backend environment template
+│   └── requirements.txt     # Python dependencies
+├── frontend/                # React frontend
+├── models/                  # Model checkpoints and weight placeholders
+├── docs/                    # Development and deployment notes
+├── scripts/                 # Utility scripts
+├── docker-compose.yml       # Container orchestration
+└── start.sh                 # Local backend bootstrap helper
 ```
 
-### 🚀 快速开始
+## Local Development
 
-#### 前置要求
+### Requirements
 
+- macOS / Linux
 - Node.js 18+
-- Python 3.10+
-- PostgreSQL 15+ (或使用SQLite for demo)
+- `uv`
+- MySQL 8+ or Homebrew MySQL
 
-#### 1. 克隆项目
-
-```bash
-git clone <your-repo-url>
-cd ECG-Diagnosis-Suite
-```
-
-#### 2. 后端设置
+### 1. Backend Setup with `uv`
 
 ```bash
-# 创建虚拟环境
 cd backend
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 启动服务
-uvicorn app.main:app --reload
+uv venv .venv --python 3.11
+uv pip install --python .venv/bin/python -r requirements.txt
 ```
 
-#### 3. 前端设置
+The repo now expects a backend virtual environment at `backend/.venv`.
+
+### 2. Configure Backend Environment
+
+Create or edit `backend/.env`:
+
+```env
+DATABASE_URL=mysql+asyncmy://ecg:ecg123456@127.0.0.1:3306/ecg_db
+```
+
+The repository already includes an example at [backend/.env.example](/Users/azure/ECG-Diagnosis-Suite/backend/.env.example).
+
+### 3. Start Local MySQL
+
+If you use Homebrew MySQL:
 
 ```bash
-# 新终端窗口
-cd frontend
-
-# 安装依赖
-pnpm install  # 或 npm install
-
-# 启动开发服务器
-pnpm dev  # 或 npm run dev
+brew services start mysql
+mysql -u root
 ```
 
-#### 4. 访问应用
+Recommended local database and user:
 
-- 前端: http://localhost:5173
-- 后端API: http://localhost:8000
-- API文档: http://localhost:8000/docs
+```sql
+CREATE DATABASE IF NOT EXISTS ecg_db CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+CREATE USER IF NOT EXISTS 'ecg'@'localhost' IDENTIFIED BY 'ecg123456';
+GRANT ALL PRIVILEGES ON ecg_db.* TO 'ecg'@'localhost';
+FLUSH PRIVILEGES;
+```
 
-#### 5. 模型权重
+### 4. Start Backend
 
-后端默认会按以下顺序查找 CardioFormer checkpoint：
+From the project root:
+
+```bash
+./start.sh
+```
+
+Or manually:
+
+```bash
+cd backend
+.venv/bin/python -m uvicorn app.main:app --reload --port 8000
+```
+
+### 5. Start Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend default address:
+
+- `http://localhost:5173`
+
+Backend default address:
+
+- `http://127.0.0.1:8000`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+
+## Docker Compose
+
+The compose stack now uses MySQL instead of PostgreSQL.
+
+```bash
+docker compose up --build
+```
+
+Services:
+
+- `backend`: FastAPI service on port `8000`
+- `frontend`: static frontend on port `80`
+- `db`: MySQL 8.4 on port `3306`
+- `redis`: Redis 7 on port `6379`
+
+Container database credentials in [docker-compose.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.yml):
+
+- database: `ecg_db`
+- user: `ecg`
+- password: `ecg123456`
+- root password: `root123456`
+
+## Model Checkpoints
+
+The backend searches CardioFormer checkpoints in this order:
 
 - `backend/models/checkpoints/best.ckpt`
 - `backend/models/weights/best.ckpt`
 - `models/checkpoints/best.ckpt`
 - `models/weights/best.ckpt`
 
-也可以通过环境变量 `MODEL_CHECKPOINT_PATH` 显式指定路径。
+You can also override this with:
 
-### 📊 使用流程
-
-```
-1. 打开网页
-   ↓
-2. 上传ECG图片（拖拽或点击）
-   ↓
-3. 点击"开始诊断"
-   ↓
-4. 查看AI诊断结果
-   ↓
-5. 导出PDF健康报告
+```env
+MODEL_CHECKPOINT_PATH=/absolute/path/to/best.ckpt
 ```
 
-### 🎯 开发路线
+## API Surface
 
-- [x] 项目结构搭建
-- [ ] 后端API开发
-- [ ] 前端界面开发
-- [ ] AI模型集成
-- [ ] PDF报告生成
-- [ ] 测试和优化
-- [ ] 部署上线
+Primary endpoints:
 
-### 📝 更新日志
+- `POST /api/diagnose`
+- `POST /api/diagnose-dat`
+- `GET /api/history`
+- `POST /api/detect/conduction-disorder`
+- `GET /health`
+- `GET /docs`
 
-#### v1.0.0 (2026-03-12)
-- 🎉 项目初始化
-- 📁 创建项目结构
-- 📝 编写基础文档
+For request/response details, see [docs/api.md](/Users/azure/ECG-Diagnosis-Suite/docs/api.md).
 
-### 🤝 贡献指南
+## Notes and Limitations
 
-欢迎提交Issue和Pull Request！
+- This project is for research and engineering use, not clinical diagnosis.
+- `GET /api/history` currently has no auth layer.
+- The frontend PDF export button is still not wired to a backend endpoint.
+- Some deployment docs still mention PostgreSQL and should be aligned separately.
 
-### 📄 许可证
+## License
 
-MIT License - 详见 [LICENSE](LICENSE) 文件
-
-### ⚠️ 免责声明
-
-本系统仅供学术研究和教育目的，**不用于临床诊断**。诊断结果需由持证医师审核确认。
-
----
-
-## English
-
-### 📖 Introduction
-
-**ECG Diagnosis Suite** is an AI-powered ECG diagnosis system. Users can upload ECG waveform images and receive AI diagnosis results with personalized health reports.
-
-### ✨ Key Features
-
-- 🖼️ **Image Upload** - Drag & drop, click to upload, or camera capture
-- 🤖 **AI Diagnosis** - Deep learning-based intelligent classification
-- 📊 **Visualization** - Confidence display and symptom explanation
-- 📄 **Health Reports** - Auto-generated PDF diagnosis reports
-- 🎨 **Modern UI** - Responsive design with mobile support
-
-### 🛠️ Tech Stack
-
-#### Frontend
-- **React 18** + TypeScript
-- **Tailwind CSS**
-- **Vite**
-- **Axios**
-
-#### Backend
-- **FastAPI**
-- **PyTorch**
-- **OpenCV**
-- **PostgreSQL**
-
-#### AI Model
-- **PyTorch** - Model training
-- **ONNX Runtime** - Optimized inference
-
-### 🚀 Quick Start
-
-#### Prerequisites
-
-- Node.js 18+
-- Python 3.10+
-- PostgreSQL 15+ (or SQLite for demo)
-
-#### 1. Setup Backend
-
-```bash
-cd backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-
-#### 2. Setup Frontend
-
-```bash
-cd frontend
-pnpm install
-pnpm dev
-```
-
-#### 3. Access Application
-
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-
-### 📄 License
-
-MIT License - See [LICENSE](LICENSE) file
-
-### ⚠️ Disclaimer
-
-This system is for **academic research and educational purposes only**, not for clinical diagnosis. Results should be reviewed by certified physicians.
-
----
-
-<div align="center">
-
-**Made with ❤️ by ECG Diagnosis Suite Team**
-
-</div>
+MIT

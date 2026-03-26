@@ -10,15 +10,17 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://ecg:password@db:5432/ecg_db
+      - DATABASE_URL=mysql+asyncmy://ecg:ecg123456@db:3306/ecg_db
       - REDIS_URL=redis://redis:6379/0
       - DEVICE=cpu
     volumes:
       - ./models:/app/models
       - ./data:/app/data
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - ecg-network
     restart: unless-stopped
@@ -37,18 +39,25 @@ services:
       - ecg-network
     restart: unless-stopped
 
-  # PostgreSQL database
+  # MySQL database
   db:
-    image: postgres:15-alpine
+    image: mysql:8.4
     container_name: ecg-db
     environment:
-      POSTGRES_USER: ecg
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: ecg_db
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: ecg_db
+      MYSQL_USER: ecg
+      MYSQL_PASSWORD: ecg123456
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
     ports:
-      - "5432:5432"
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     networks:
       - ecg-network
     restart: unless-stopped
@@ -72,5 +81,5 @@ networks:
 
 # Volumes
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:
