@@ -73,7 +73,7 @@ ECG-Diagnosis-Suite/
 │
 ├── models/                  # 模型文件
 │   ├── weights/            # 训练好的权重
-│   └── checkpoints/        # 训练检查点
+│   └── checkpoints/        # 训练检查点（默认读取 best.ckpt）
 │
 ├── data/                    # 数据目录
 │   ├── uploads/            # 上传的图片
@@ -97,7 +97,8 @@ ECG-Diagnosis-Suite/
 #### 1. 克隆项目
 
 ```bash
-cd /Users/azure/paper/ECG-Diagnosis-Suite
+git clone <your-repo-url>
+cd ECG-Diagnosis-Suite
 ```
 
 #### 2. 后端设置
@@ -133,6 +134,17 @@ pnpm dev  # 或 npm run dev
 - 前端: http://localhost:5173
 - 后端API: http://localhost:8000
 - API文档: http://localhost:8000/docs
+
+#### 5. 模型权重
+
+后端默认会按以下顺序查找 CardioFormer checkpoint：
+
+- `backend/models/checkpoints/best.ckpt`
+- `backend/models/weights/best.ckpt`
+- `models/checkpoints/best.ckpt`
+- `models/weights/best.ckpt`
+
+也可以通过环境变量 `MODEL_CHECKPOINT_PATH` 显式指定路径。
 
 ### 📊 使用流程
 

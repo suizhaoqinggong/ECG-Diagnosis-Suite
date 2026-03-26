@@ -1,12 +1,22 @@
 """
 Diagnosis API endpoints
 """
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from pydantic import BaseModel
-from typing import List, Optional
-import os
+from pathlib import Path
 import shutil
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from pydantic import BaseModel
+from PIL import Image
+from sqlalchemy import select
+
+from app.core.config import settings
+from app.core.database import AsyncSessionLocal
+from app.models.db_models import DiagnosisRecord
+from app.services.ecg_dat_loader import ECGDataLoader
+from ml.cardioformer_service import CardioFormerService
 
 router = APIRouter()
 
@@ -19,10 +29,39 @@ class DiagnosisResponse(BaseModel):
     description: Optional[str] = None
     recommendations: Optional[List[str]] = None
     timestamp: str
+    all_probabilities: Optional[Dict[str, float]] = None
+    top3_predictions: Optional[List[Dict[str, Any]]] = None
     disclaimer: str = "本结果仅供参考，不作为临床诊断依据"
 
 
-# 模拟症状数据库
+# Initialize CardioFormer service (singleton)
+_model_service = None
+
+
+def get_model_service():
+    """Get or create CardioFormer service instance"""
+    global _model_service
+    if _model_service is None:
+        checkpoint_path = settings.get_model_checkpoint_path()
+
+        if checkpoint_path is None:
+            print("⚠️  No model checkpoint found in configured locations.")
+            print("   Falling back to random initialization (for testing only).")
+        else:
+            print(f"✅ Found checkpoint: {checkpoint_path}")
+
+        _model_service = CardioFormerService(
+            checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
+            num_classes=5,
+            signal_length=1000,
+            input_channels=12,
+            device=settings.DEVICE,
+        )
+
+    return _model_service
+
+
+# 症状数据库 - 基于PTB-XL超类
 SYMPTOM_DATABASE = {
     "正常": {
         "severity": "正常",
@@ -34,53 +73,168 @@ SYMPTOM_DATABASE = {
             "适量运动",
         ],
     },
-    "房颤": {
-        "severity": "中等",
-        "icd_code": "I48.0",
-        "description": "房颤是一种常见的心律失常，心房跳动不规则且快速，可能导致血栓形成。",
+    "心肌梗死": {
+        "severity": "严重",
+        "icd_code": "I21.0",
+        "description": "心电图提示可能存在心肌梗死，这是由于冠状动脉阻塞导致心肌缺血坏死。",
         "recommendations": [
-            "建议尽快就医心内科",
-            "避免剧烈运动和情绪激动",
-            "定期监测心率和血压",
-            "遵医嘱服用抗凝药物",
-            "戒烟限酒，保持健康生活方式",
+            "立即就医急诊科",
+            "需要紧急冠脉造影评估",
+            "遵医嘱服用抗血小板药物",
+            "卧床休息，避免剧烈活动",
+            "控制血压、血糖、血脂",
         ],
     },
-    # 可以添加更多症状...
+    "ST-T改变": {
+        "severity": "中等",
+        "icd_code": "I20.0",
+        "description": "ST段或T波出现异常改变，可能提示心肌缺血、电解质紊乱或其他心脏问题。",
+        "recommendations": [
+            "建议心内科专科就诊",
+            "进一步完善心脏超声检查",
+            "监测血压和心率",
+            "避免剧烈运动和情绪激动",
+            "定期复查心电图",
+        ],
+    },
+    "传导障碍": {
+        "severity": "中等",
+        "icd_code": "I44.0",
+        "description": "心脏传导系统出现异常，可能导致心跳过缓或不规则。",
+        "recommendations": [
+            "建议心内科就诊",
+            "必要时进行24小时动态心电图监测",
+            "评估是否需要起搏器植入",
+            "避免使用影响心率的药物",
+            "定期复查心电图",
+        ],
+    },
+    "心室肥大": {
+        "severity": "中等",
+        "icd_code": "I42.0",
+        "description": "心室壁增厚，可能由于高血压、心脏瓣膜病等原因导致。",
+        "recommendations": [
+            "建议心内科就诊",
+            "完善心脏超声检查",
+            "控制血压在正常范围",
+            "限制钠盐摄入",
+            "定期随访心脏功能",
+        ],
+    },
 }
+
+
+def _timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+async def _save_diagnosis_record(file_reference: str, result: DiagnosisResponse) -> None:
+    async with AsyncSessionLocal() as session:
+        session.add(
+            DiagnosisRecord(
+                image_path=file_reference,
+                prediction=result.prediction,
+                confidence=result.confidence,
+                severity=result.severity,
+                icd_code=result.icd_code,
+                description=result.description,
+                recommendations=result.recommendations,
+            )
+        )
+        await session.commit()
 
 
 @router.post("/diagnose", response_model=DiagnosisResponse)
 async def diagnose_ecg(file: UploadFile = File(...)):
     """
-    上传ECG图片并获取诊断结果
+    上传ECG数据并获取诊断结果
+
+    支持的格式：
+    - 图片格式: .png, .jpg, .jpeg
+    - ECG数据格式: .dat (PTB-XL格式，需要配套.hea文件)
     """
+    filename = file.filename.lower()
+
     # 验证文件类型
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="只支持图片文件")
+    if filename.endswith('.dat'):
+        # 处理.dat文件
+        return await _diagnose_dat_file(file)
+    elif file.content_type and file.content_type.startswith("image/"):
+        # 处理图片文件
+        return await _diagnose_image_file(file)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="不支持的文件格式。支持的格式：图片(.png, .jpg, .jpeg) 或 ECG数据(.dat)"
+        )
 
-    # 保存上传的文件
-    upload_dir = "./data/uploads"
-    os.makedirs(upload_dir, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_path = os.path.join(upload_dir, f"{timestamp}_{file.filename}")
+async def _diagnose_dat_file(file: UploadFile) -> DiagnosisResponse:
+    """
+    处理.dat文件上传和诊断
+    """
+    settings.ensure_runtime_dirs()
+    upload_dir = settings.upload_dir_path
+    temp_dir = upload_dir / f"single_{_timestamp()}"
+    temp_dir.mkdir(parents=True, exist_ok=True)
 
-    with open(file_path, "wb") as buffer:
+    dat_path = temp_dir / file.filename
+
+    # 保存.dat文件
+    with dat_path.open("wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # TODO: 这里调用实际的模型推理
-        # result = await model.predict(file_path)
+        print(f"📁 Processing .dat file: {file.filename}")
 
-        # 临时返回模拟数据
-        prediction = "正常"  # 模拟预测结果
-        confidence = 0.95  # 模拟置信度
+        # 加载.dat文件
+        loader = ECGDataLoader(
+            target_length=1000,
+            target_leads=12,
+            normalize=True
+        )
+
+        # 尝试加载信号数据
+        # 注意：需要配套的.hea文件
+        try:
+            signal_data, metadata = loader.load_dat_file(str(dat_path))
+        except FileNotFoundError as e:
+            # 如果找不到.hea文件，给出明确提示
+            raise HTTPException(
+                status_code=400,
+                detail=f"缺少配套文件：{str(e)}。.dat文件需要同名的.hea头文件。"
+            )
+
+        # 验证信号格式
+        if not loader.validate_signal(signal_data):
+            raise HTTPException(
+                status_code=400,
+                detail="信号数据格式无效，请检查数据完整性"
+            )
+
+        print(f"✅ Signal loaded successfully")
+        print(f"   Shape: {signal_data.shape}")
+        print(f"   Sample rate: {metadata.get('fs', 'unknown')} Hz")
+
+        # 获取模型服务
+        service = get_model_service()
+
+        # 直接从信号进行推理（跳过图像转换）
+        print("🔮 Running CardioFormer inference on signal data...")
+        result = service.predict_from_signal(signal_data)
+
+        print(f"✅ Inference completed")
+        print(f"   Prediction: {result['prediction']}")
+        print(f"   Confidence: {result['confidence']:.2%}")
+
+        # 获取预测结果
+        prediction = result['prediction']
+        confidence = result['confidence']
 
         # 从数据库获取症状信息
         symptom_info = SYMPTOM_DATABASE.get(prediction, {})
 
-        return DiagnosisResponse(
+        response = DiagnosisResponse(
             prediction=prediction,
             confidence=confidence,
             severity=symptom_info.get("severity"),
@@ -88,19 +242,238 @@ async def diagnose_ecg(file: UploadFile = File(...)):
             description=symptom_info.get("description"),
             recommendations=symptom_info.get("recommendations"),
             timestamp=datetime.now().isoformat(),
+            all_probabilities=result.get("all_probabilities"),
+            top3_predictions=result.get("top3_predictions"),
         )
+        await _save_diagnosis_record(file.filename, response)
+        return response
+
+    except HTTPException:
+        # 重新抛出HTTP异常
+        raise
+    except Exception as e:
+        print(f"❌ .dat diagnosis failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
+    finally:
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+async def _diagnose_image_file(file: UploadFile) -> DiagnosisResponse:
+    """
+    处理图片文件上传和诊断（原有逻辑）
+    """
+    settings.ensure_runtime_dirs()
+    upload_dir = settings.upload_dir_path
+
+    file_path = upload_dir / f"{_timestamp()}_{file.filename}"
+
+    with file_path.open("wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    try:
+        # 加载图像
+        image = Image.open(file_path).convert('RGB')
+        image_array = np.array(image)
+
+        print(f"📸 Processing image: {file.filename}")
+        print(f"   Image shape: {image_array.shape}")
+
+        # 获取模型服务
+        service = get_model_service()
+
+        # 真实推理
+        print("🔮 Running CardioFormer inference...")
+        result = service.predict_from_image(image_array)
+
+        print(f"✅ Inference completed")
+        print(f"   Prediction: {result['prediction']}")
+        print(f"   Confidence: {result['confidence']:.2%}")
+
+        # 获取预测结果
+        prediction = result['prediction']
+        confidence = result['confidence']
+
+        # 从数据库获取症状信息
+        symptom_info = SYMPTOM_DATABASE.get(prediction, {})
+
+        response = DiagnosisResponse(
+            prediction=prediction,
+            confidence=confidence,
+            severity=symptom_info.get("severity"),
+            icd_code=symptom_info.get("icd_code"),
+            description=symptom_info.get("description"),
+            recommendations=symptom_info.get("recommendations"),
+            timestamp=datetime.now().isoformat(),
+            all_probabilities=result.get("all_probabilities"),
+            top3_predictions=result.get("top3_predictions"),
+        )
+        await _save_diagnosis_record(file.filename, response)
+        return response
 
     except Exception as e:
-        # 清理文件
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        print(f"❌ Image diagnosis failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
+    finally:
+        file_path.unlink(missing_ok=True)
+
+
+@router.post("/diagnose-dat", response_model=DiagnosisResponse)
+async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
+    """
+    上传.dat和.hea文件进行诊断
+
+    需要同时上传两个文件：
+    - .dat文件：ECG信号数据
+    - .hea文件：头文件（元数据）
+
+    两个文件必须文件名相同（只有扩展名不同）
+    """
+    # 验证文件数量
+    if len(files) != 2:
+        raise HTTPException(
+            status_code=400,
+            detail="请同时上传.dat和.hea两个文件"
+        )
+
+    # 识别.dat和.hea文件
+    dat_file = None
+    hea_file = None
+
+    for file in files:
+        if file.filename.lower().endswith('.dat'):
+            dat_file = file
+        elif file.filename.lower().endswith('.hea'):
+            hea_file = file
+
+    if not dat_file or not hea_file:
+        raise HTTPException(
+            status_code=400,
+            detail="必须包含一个.dat文件和一个.hea文件"
+        )
+
+    # 验证文件名匹配
+    dat_name = dat_file.filename.replace('.dat', '').replace('.DAT', '')
+    hea_name = hea_file.filename.replace('.hea', '').replace('.HEA', '')
+
+    if dat_name != hea_name:
+        raise HTTPException(
+            status_code=400,
+            detail=f".dat和.hea文件名必须相同（不含扩展名）。.dat: {dat_name}, .hea: {hea_name}"
+        )
+
+    print(f"📁 Processing .dat + .hea files: {dat_file.filename} + {hea_file.filename}")
+
+    settings.ensure_runtime_dirs()
+    upload_dir = settings.upload_dir_path
+    temp_dir = upload_dir / f"session_{_timestamp()}"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    # 使用原始文件名（wfdb需要文件名与.hea中的记录名匹配）
+    dat_path = temp_dir / dat_file.filename
+    hea_path = temp_dir / hea_file.filename
+
+    try:
+        # 保存.dat文件
+        with dat_path.open("wb") as buffer:
+            shutil.copyfileobj(dat_file.file, buffer)
+
+        # 保存.hea文件
+        with hea_path.open("wb") as buffer:
+            shutil.copyfileobj(hea_file.file, buffer)
+
+        print(f"✅ Files saved:")
+        print(f"   .dat: {dat_path}")
+        print(f"   .hea: {hea_path}")
+
+        # 加载.dat文件
+        loader = ECGDataLoader(
+            target_length=1000,
+            target_leads=12,
+            normalize=True
+        )
+
+        signal_data, metadata = loader.load_dat_file(str(dat_path))
+
+        # 验证信号格式
+        if not loader.validate_signal(signal_data):
+            raise HTTPException(
+                status_code=400,
+                detail="信号数据格式无效，请检查数据完整性"
+            )
+
+        print(f"✅ Signal loaded successfully")
+        print(f"   Shape: {signal_data.shape}")
+        print(f"   Sample rate: {metadata.get('fs', 'unknown')} Hz")
+
+        # 获取模型服务
+        service = get_model_service()
+
+        # 直接从信号进行推理
+        print("🔮 Running CardioFormer inference on signal data...")
+        result = service.predict_from_signal(signal_data)
+
+        print(f"✅ Inference completed")
+        print(f"   Prediction: {result['prediction']}")
+        print(f"   Confidence: {result['confidence']:.2%}")
+
+        # 获取预测结果
+        prediction = result['prediction']
+        confidence = result['confidence']
+
+        # 从数据库获取症状信息
+        symptom_info = SYMPTOM_DATABASE.get(prediction, {})
+
+        response = DiagnosisResponse(
+            prediction=prediction,
+            confidence=confidence,
+            severity=symptom_info.get("severity"),
+            icd_code=symptom_info.get("icd_code"),
+            description=symptom_info.get("description"),
+            recommendations=symptom_info.get("recommendations"),
+            timestamp=datetime.now().isoformat(),
+            all_probabilities=result.get("all_probabilities"),
+            top3_predictions=result.get("top3_predictions"),
+        )
+        await _save_diagnosis_record(dat_file.filename, response)
+        return response
+
+    except HTTPException:
+        # 重新抛出HTTP异常
+        raise
+    except Exception as e:
+        print(f"❌ .dat diagnosis failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
+    finally:
+        # 清理整个临时目录
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            print(f"🧹 Cleaned up temp directory: {temp_dir}")
 
 
 @router.get("/history")
-async def get_diagnosis_history():
+async def get_diagnosis_history(limit: int = 20):
     """
     获取诊断历史记录
     """
-    # TODO: 从数据库查询历史记录
-    return {"message": "功能开发中"}
+    if limit < 1 or limit > 100:
+        raise HTTPException(status_code=400, detail="limit 必须在 1 到 100 之间")
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(DiagnosisRecord)
+            .order_by(DiagnosisRecord.created_at.desc())
+            .limit(limit)
+        )
+        records = result.scalars().all()
+
+    return {
+        "items": [record.to_dict() for record in records],
+        "count": len(records),
+    }

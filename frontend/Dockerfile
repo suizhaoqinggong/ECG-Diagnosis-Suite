@@ -1,22 +1,20 @@
-"""
-Dockerfile for React frontend
-"""
+# Dockerfile for React frontend
 FROM node:18-alpine as builder
 
 # Set working directory
 WORKDIR /app
 
 # Copy package files
-COPY package.json pnpm-lock.yaml* ./
+COPY package.json package-lock.json ./
 
 # Install dependencies
-RUN npm install -g pnpm && pnpm install
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build application
-RUN pnpm build
+RUN npm run build
 
 # Production stage
 FROM nginx:alpine

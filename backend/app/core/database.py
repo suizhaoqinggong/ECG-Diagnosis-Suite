@@ -1,10 +1,14 @@
 """
 Database configuration and session management
 """
+import logging
+
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.core.config import settings
 from app.models.db_models import Base
+
+logger = logging.getLogger(__name__)
 
 # 创建异步引擎
 engine = create_async_engine(
@@ -26,6 +30,7 @@ async def init_db():
     async with engine.begin() as conn:
         # 创建所有表
         await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database initialized: %s", settings.DATABASE_URL)
 
 
 async def get_db() -> AsyncSession:

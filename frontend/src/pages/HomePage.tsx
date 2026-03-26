@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import ImageUpload from '../components/ImageUpload'
 import DiagnosisResult from '../components/DiagnosisResult'
+import type { DiagnosisResultData } from '../api'
 
 export default function HomePage() {
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<DiagnosisResultData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
   return (

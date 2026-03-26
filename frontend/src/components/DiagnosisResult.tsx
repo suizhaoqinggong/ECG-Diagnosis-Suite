@@ -1,5 +1,8 @@
+import type { DiagnosisResultData } from '../api'
+import { formatConfidence } from '../utils'
+
 interface DiagnosisResultProps {
-  result: any
+  result: DiagnosisResultData
   onReset: () => void
 }
 
@@ -33,7 +36,7 @@ export default function DiagnosisResult({ result, onReset }: DiagnosisResultProp
           <div className="text-right">
             <p className="text-sm text-gray-600 dark:text-gray-400">置信度</p>
             <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">
-              {(result.confidence * 100).toFixed(1)}%
+              {formatConfidence(result.confidence)}
             </p>
           </div>
         </div>
@@ -71,19 +74,25 @@ export default function DiagnosisResult({ result, onReset }: DiagnosisResultProp
       {/* 操作按钮 */}
       <div className="flex gap-4 pt-4">
         <button
+          type="button"
           onClick={onReset}
           className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
         >
           重新诊断
         </button>
-        <button className="flex-1 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">
-          导出PDF报告
+        <button
+          type="button"
+          disabled
+          title="PDF 导出将在后续 API 接入后开放"
+          className="flex-1 px-6 py-3 bg-primary-300 text-white rounded-lg cursor-not-allowed"
+        >
+          PDF 导出待接入
         </button>
       </div>
 
       {/* 免责声明 */}
       <div className="text-xs text-center text-gray-400 dark:text-gray-500 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <p>⚠️ 本结果仅供参考���不作为临床诊断依据</p>
+        <p>⚠️ 本结果仅供参考，不作为临床诊断依据</p>
         <p className="mt-1">如有疑虑，请及时就医咨询专业医生</p>
       </div>
     </div>

@@ -63,6 +63,7 @@ models/weights/*.h5
 
 models/checkpoints/*
 !models/checkpoints/.gitkeep
+!models/checkpoints/best.ckpt
 
 # 临时文件
 *.tmp

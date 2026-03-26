@@ -3,21 +3,18 @@ Conduction Disorder Detection API
 
 专门的传导障碍检测API端点
 """
+from datetime import datetime
+from pathlib import Path
+import shutil
+from typing import Dict
+
+import cv2
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Optional
-import os
-import shutil
-from datetime import datetime
-import cv2
-import numpy as np
 
-# 导入传导障碍检测器
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+from app.core.config import settings
 from ml.conduction_disorder_detector import create_cd_detector
+
 
 router = APIRouter()
 
@@ -63,20 +60,19 @@ async def detect_conduction_disorder(file: UploadFile = File(...)):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="只支持图片文件")
 
-    # 保存上传的文件
-    upload_dir = "./data/uploads"
-    os.makedirs(upload_dir, exist_ok=True)
+    settings.ensure_runtime_dirs()
+    upload_dir = settings.upload_dir_path
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_path = os.path.join(upload_dir, f"{timestamp}_{file.filename}")
+    file_path = upload_dir / f"{timestamp}_{file.filename}"
 
     try:
         # 保存文件
-        with open(file_path, "wb") as buffer:
+        with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         # 读取图像
-        image = cv2.imread(file_path)
+        image = cv2.imread(str(file_path))
         if image is None:
             raise HTTPException(status_code=400, detail="无法读取图片文件")
 
@@ -103,10 +99,9 @@ async def detect_conduction_disorder(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
-        # 清理文件
-        if os.path.exists(file_path):
-            os.remove(file_path)
         raise HTTPException(status_code=500, detail=f"检测失败: {str(e)}")
+    finally:
+        file_path.unlink(missing_ok=True)
 
 
 @router.get("/detect/conduction-disorder/info")
