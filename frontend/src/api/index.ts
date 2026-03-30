@@ -6,6 +6,17 @@ export interface PredictionProbability {
   probability: number
 }
 
+export interface EnhancedDiagnosisReport {
+  source: 'template' | 'llm'
+  model?: string | null
+  summary: string
+  clinical_interpretation: string
+  key_findings: string[]
+  recommendations: string[]
+  follow_up: string[]
+  limitations: string[]
+}
+
 export interface DiagnosisResultData {
   prediction: string
   confidence: number
@@ -17,53 +28,58 @@ export interface DiagnosisResultData {
   disclaimer: string
   all_probabilities?: Record<string, number> | null
   top3_predictions?: PredictionProbability[] | null
+  report: EnhancedDiagnosisReport
 }
 
-export interface DiagnosisHistoryResponse {
-  items: Array<{
-    id: number
-    image_path: string
-    prediction: string
-    confidence: number
-    severity?: string | null
-    icd_code?: string | null
-    description?: string | null
-    recommendations?: string[] | null
-    created_at?: string | null
-    updated_at?: string | null
-  }>
-  count: number
-}
-
-async function postFormData<T>(url: string, formData: FormData): Promise<T> {
-  const response = await apiClient.post<T>(url, formData, {
+async function postFormData<T>(
+  url: string,
+  formData: FormData,
+  onUploadProgress?: (progress: number) => void,
+  signal?: AbortSignal,
+): Promise<T> {
+  const config: Parameters<typeof apiClient.post>[2] = {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-  })
+  }
 
+  if (onUploadProgress) {
+    config.onUploadProgress = (event: { loaded: number; total?: number }) => {
+      if (event.total) {
+        onUploadProgress(Math.round((event.loaded / event.total) * 100))
+      }
+    }
+  }
+
+  if (signal) {
+    config.signal = signal
+  }
+
+  const response = await apiClient.post<T>(url, formData, config)
   return response.data
 }
 
 export const diagnosisApi = {
-  diagnoseImage(file: File) {
+  diagnoseImage(
+    file: File,
+    onUploadProgress?: (progress: number) => void,
+    signal?: AbortSignal,
+  ) {
     const formData = new FormData()
     formData.append('file', file)
-    return postFormData<DiagnosisResultData>('/api/diagnose', formData)
+    return postFormData<DiagnosisResultData>('/api/diagnose', formData, onUploadProgress, signal)
   },
 
-  diagnoseDatPair(datFile: File, heaFile: File) {
+  diagnoseDatPair(
+    datFile: File,
+    heaFile: File,
+    onUploadProgress?: (progress: number) => void,
+    signal?: AbortSignal,
+  ) {
     const formData = new FormData()
     formData.append('files', datFile)
     formData.append('files', heaFile)
-    return postFormData<DiagnosisResultData>('/api/diagnose-dat', formData)
-  },
-
-  async getHistory(limit = 20) {
-    const response = await apiClient.get<DiagnosisHistoryResponse>('/api/history', {
-      params: { limit },
-    })
-    return response.data
+    return postFormData<DiagnosisResultData>('/api/diagnose-dat', formData, onUploadProgress, signal)
   },
 }
 
