@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple
 from pathlib import Path
 import cv2
 
-from .resnet1d_model import ResNet1DBaseline, PTBXL_SUPERCLASSES
+from .resnet1d_model import ResNet1DBaseline, PTBXL_SUPERCLASSES_CN as PTBXL_SUPERCLASSES
 from .ecg_image_converter import ECGImageToSignal, create_dummy_ecg_signal
 
 

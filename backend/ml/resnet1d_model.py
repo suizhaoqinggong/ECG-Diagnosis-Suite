@@ -215,14 +215,17 @@ class ResNet1DBaseline(nn.Module):
         return logits
 
 
-# PTB-XL superclass labels
-PTBXL_SUPERCLASSES = [
+# PTB-XL superclass labels (Chinese, used by ConductionDisorderDetector)
+PTBXL_SUPERCLASSES_CN = [
     "正常心电图",      # NORM
     "心肌梗死",        # MI
     "ST-T改变",        # STTC
     "传导障碍",        # CD
     "肥厚",            # HYP
 ]
+
+# Keep old name for backward compatibility with test files
+PTBXL_SUPERCLASSES = PTBXL_SUPERCLASSES_CN
 
 
 def create_resnet1d_model(

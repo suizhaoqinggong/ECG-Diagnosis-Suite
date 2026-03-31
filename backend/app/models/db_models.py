@@ -4,7 +4,6 @@ Database Models
 from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
-from datetime import datetime
 
 Base = declarative_base()
 
@@ -45,25 +44,4 @@ class DiagnosisRecord(Base):
             "recommendations": self.recommendations,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
-        }
-
-
-class User(Base):
-    """用户表（可选功能）"""
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String(50), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-
-    created_at = Column(DateTime, default=func.now())
-
-    def to_dict(self):
-        """转换为字典（不包含密码）"""
-        return {
-            "id": self.id,
-            "username": self.username,
-            "email": self.email,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

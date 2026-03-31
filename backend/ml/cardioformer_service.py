@@ -95,6 +95,12 @@ class CardioFormerService:
         """
         预处理ECG信号
 
+        Applies global z-score normalization.  Both the DAT loader and the
+        image converter already normalise per-lead before reaching this
+        point, so the signal undergoes two normalization steps.  This
+        pipeline matches the model's training setup — do not remove either
+        step without A/B testing against a held-out set.
+
         Args:
             signal: 信号数组 [num_leads, signal_length] 或 [signal_length]
 

@@ -5,7 +5,6 @@ Conduction Disorder Detection API
 """
 from datetime import datetime
 from pathlib import Path
-import shutil
 from typing import Dict
 
 import cv2
@@ -13,6 +12,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
 from app.core.config import settings
+from app.core.upload import sanitize_filename, save_upload, validate_extension
 from ml.conduction_disorder_detector import create_cd_detector
 
 
@@ -56,6 +56,9 @@ async def detect_conduction_disorder(file: UploadFile = File(...)):
     Returns:
         ConductionDisorderResult: 检测结果
     """
+    safe_name = sanitize_filename(file.filename)
+    validate_extension(safe_name)
+
     # 验证文件类型
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="只支持图片文件")
@@ -64,12 +67,10 @@ async def detect_conduction_disorder(file: UploadFile = File(...)):
     upload_dir = settings.upload_dir_path
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    file_path = upload_dir / f"{timestamp}_{file.filename}"
+    file_path = upload_dir / f"{timestamp}_{safe_name}"
 
     try:
-        # 保存文件
-        with file_path.open("wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        save_upload(file, file_path)
 
         # 读取图像
         image = cv2.imread(str(file_path))

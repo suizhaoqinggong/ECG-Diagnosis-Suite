@@ -1,22 +1,26 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
+import ErrorBoundary from './components/ErrorBoundary'
 import HomePage from './pages/HomePage'
-
-const queryClient = new QueryClient()
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-transparent text-[var(--ink)]">
         <HomePage />
       </div>
       <Toaster
-        position="top-right"
+        position="top-center"
         toastOptions={{
-          duration: 3000,
+          duration: 3200,
+          style: {
+            borderRadius: '18px',
+            background: 'rgba(255, 252, 247, 0.96)',
+            color: '#2e2a26',
+            boxShadow: '0 18px 40px rgba(84, 69, 53, 0.12)',
+          },
         }}
       />
-    </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 
