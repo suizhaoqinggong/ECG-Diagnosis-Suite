@@ -286,7 +286,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: [],
           pairStatus: 'empty',
           validationErrors: [],
-      replacedFileNames: [],
+          replacedFileNames: [],
         },
       }
     }
@@ -399,7 +399,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: [],
           pairStatus: 'empty',
           validationErrors: [],
-      replacedFileNames: [],
+          replacedFileNames: [],
         },
         submission: {
           activeMessageId: null,
@@ -423,7 +423,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: [],
           pairStatus: 'empty',
           validationErrors: [],
-      replacedFileNames: [],
+          replacedFileNames: [],
         },
         submission: {
           activeMessageId: null,
@@ -463,7 +463,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
             attachments: [],
             pairStatus: 'empty',
             validationErrors: [],
-      replacedFileNames: [],
+            replacedFileNames: [],
           },
           submission: {
             activeMessageId: null,
@@ -493,7 +493,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
               attachments: [],
               pairStatus: 'empty',
               validationErrors: [],
-      replacedFileNames: [],
+              replacedFileNames: [],
             }
           : state.composer,
         submission: isActive
@@ -522,7 +522,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: [],
           pairStatus: 'empty',
           validationErrors: [],
-      replacedFileNames: [],
+          replacedFileNames: [],
         },
         submission: {
           activeMessageId: null,
@@ -753,7 +753,10 @@ export function useWorkspaceController() {
   const retry = useCallback(async () => {
     if (!lastFilesRef.current || !activeSession) { toast.error('Please re-select files and try again.'); return }
     dispatch({ type: 'ADD_FILES', files: lastFilesRef.current })
-  }, [activeSession])
+    // Re-submit with the stashed files after a tick (let state update first)
+    await new Promise(r => setTimeout(r, 0))
+    submit()
+  }, [activeSession, submit])
 
   return { state, dispatch, activeSession, isSubmitting, submit, retry, cancelSubmission }
 }
