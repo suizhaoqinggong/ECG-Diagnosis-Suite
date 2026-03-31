@@ -38,6 +38,7 @@ class CardioFormerService:
         signal_length: int = 1000,
         input_channels: int = 12,
         device: str = "cpu",
+        threshold: float = 0.5,
         **model_kwargs
     ):
         """
@@ -49,12 +50,14 @@ class CardioFormerService:
             signal_length: 信号长度（默认1000）
             input_channels: 输入通道数（默认12，标准12导联ECG）
             device: 计算设备 ("cpu" 或 "cuda")
+            threshold: 多标签检测阈值（默认0.5）
             **model_kwargs: 其他模型参数
         """
         self.device = torch.device(device)
         self.signal_length = signal_length
         self.input_channels = input_channels
         self.num_classes = num_classes
+        self.threshold = threshold
 
         # 创建模型
         self.model = create_cardioformer_model(
@@ -130,7 +133,8 @@ class CardioFormerService:
     def predict_from_signal(
         self,
         signal: np.ndarray,
-        return_probs: bool = True
+        return_probs: bool = True,
+        threshold: Optional[float] = None
     ) -> Dict:
         """
         直接从ECG信号进行预测
@@ -138,6 +142,7 @@ class CardioFormerService:
         Args:
             signal: ECG信号数组 [num_leads, signal_length]
             return_probs: 是否返回所有类别的概率
+            threshold: 多标签检测阈值，None则使用self.threshold
 
         Returns:
             预测结果字典
@@ -148,9 +153,10 @@ class CardioFormerService:
         # 推理
         with torch.no_grad():
             logits = self.model(input_tensor)
-            probabilities = F.softmax(logits, dim=1)
+            # 使用sigmoid而非softmax：模型以BCE loss训练，属于多标签分类
+            probabilities = torch.sigmoid(logits)
 
-            # 获取top-1预测
+            # 获取top-1预测（最高sigmoid概率）
             confidence, predicted = torch.max(probabilities, 1)
 
             prediction_en = self.class_names[predicted.item()]
@@ -162,6 +168,26 @@ class CardioFormerService:
                 "confidence": float(confidence.item()),
                 "class_index": int(predicted.item()),
             }
+
+            # 多标签检测：收集所有超过阈值的类别
+            thresh = threshold if threshold is not None else self.threshold
+            probs_np = probabilities[0].cpu().numpy()
+            # 按概率降序排列所有超过阈值的类别索引
+            above_mask = probs_np >= thresh
+            above_indices = np.where(above_mask)[0]
+            above_sorted = above_indices[np.argsort(-probs_np[above_indices])]
+
+            detected_labels = [
+                self.class_names_zh.get(self.class_names[i], self.class_names[i])
+                for i in above_sorted
+            ]
+            result["detected_labels"] = detected_labels
+
+            # 次要发现：排除主预测之外的检测标签
+            primary_zh = prediction_zh
+            result["secondary_findings"] = [
+                label for label in detected_labels if label != primary_zh
+            ]
 
             # 返回所有类别的概率
             if return_probs:

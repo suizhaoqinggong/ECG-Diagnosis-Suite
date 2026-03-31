@@ -180,7 +180,7 @@ class DiagnosisReportService:
                 else:
                     alternatives.append(label)
             if alternatives:
-                key_findings.append(f"主要备选类别包括：{'、'.join(alternatives)}。")
+                key_findings.append(f"其他高置信类别包括：{'、'.join(alternatives)}。")
 
         report_recommendations = list(recommendations or [])
         if not report_recommendations:

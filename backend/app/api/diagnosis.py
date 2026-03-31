@@ -36,6 +36,8 @@ class DiagnosisResponse(BaseModel):
     timestamp: str
     all_probabilities: Optional[Dict[str, float]] = None
     top3_predictions: Optional[List[Dict[str, Any]]] = None
+    detected_labels: Optional[List[str]] = None  # All labels above threshold
+    secondary_findings: Optional[List[str]] = None  # Non-primary detected labels
     report: DiagnosisEnhancedReport
     disclaimer: str = "本结果仅供参考，不作为临床诊断依据"
 
@@ -184,6 +186,8 @@ async def _create_diagnosis_response(
         timestamp=datetime.now().isoformat(),
         all_probabilities=result.get("all_probabilities"),
         top3_predictions=result.get("top3_predictions"),
+        detected_labels=result.get("detected_labels"),
+        secondary_findings=result.get("secondary_findings"),
         report=report,
     )
     await _save_diagnosis_record(file_reference, response)
