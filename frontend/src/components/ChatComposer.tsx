@@ -7,8 +7,8 @@ interface ChatComposerProps {
   attachedFiles: AttachedFileSummary[]
   isLoading: boolean
   onDraftChange: (value: string) => void
-  onImageFilesSelected: (files: FileList | null) => void
-  onDataFilesSelected: (files: FileList | null) => void
+  onImageFilesSelected: (files: File[] | null) => void
+  onDataFilesSelected: (files: File[] | null) => void
   onRemoveFile: (fileId: string) => void
   onSubmit: () => void
 }
@@ -61,12 +61,14 @@ export default function ChatComposer({
   }
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onImageFilesSelected(event.target.files)
+    const files = event.target.files ? Array.from(event.target.files) : null
+    onImageFilesSelected(files)
     event.target.value = ''
   }
 
   const handleDataChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onDataFilesSelected(event.target.files)
+    const files = event.target.files ? Array.from(event.target.files) : null
+    onDataFilesSelected(files)
     event.target.value = ''
   }
 

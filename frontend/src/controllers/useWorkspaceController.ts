@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import type { ChatSession, ConversationMessage, AttachedFileSummary } from '@/types/chat'
 import type { DiagnosisResultData } from '@/api'
 import { diagnosisApi } from '@/api'
+import { extractErrorMessage } from '@/api/client'
 
 // ===== Types =====
 
@@ -735,7 +736,7 @@ export function useWorkspaceController() {
       }
     } catch (error: unknown) {
       if (currentAbortController.signal.aborted) return // Cancelled, don't show error
-      const errorMessage = error instanceof Error ? error.message : 'Analysis failed'
+      const errorMessage = extractErrorMessage(error)
       dispatch({ type: 'UPDATE_MESSAGE', sessionId: activeSession.id, messageId: pendingMessageId, updates: { status: 'error', errorDetail: errorMessage } })
       dispatch({ type: 'SUBMIT_FAILED', error: errorMessage })
       toast.error(errorMessage)
