@@ -3,29 +3,151 @@
 @tailwind utilities;
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --bg: #f5f1ea;
+  --bg-muted: #efe8dc;
+  --surface: rgba(255, 252, 247, 0.86);
+  --surface-strong: rgba(255, 252, 247, 0.96);
+  --border: rgba(120, 104, 86, 0.16);
+  --border-strong: rgba(120, 104, 86, 0.24);
+  --ink: #2e2a26;
+  --ink-soft: #61564b;
+  --ink-muted: #8c7f72;
+  --accent: #7d6b57;
+  --accent-soft: #ede3d4;
+
+  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.78), transparent 28rem),
+    radial-gradient(circle at top right, rgba(236, 227, 212, 0.78), transparent 24rem),
+    linear-gradient(180deg, #f7f3ec 0%, #f1ebe1 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+}
+
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  color: var(--ink);
+  background: transparent;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(125, 107, 87, 0.18);
 }
 
 #root {
   width: 100%;
   min-height: 100vh;
+}
+
+.reading-copy {
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+}
+
+.prose-block p {
+  margin: 0;
+}
+
+.prose-block p + p {
+  margin-top: 1.1rem;
+}
+
+.soft-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125, 107, 87, 0.28) transparent;
+}
+
+.soft-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.soft-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.soft-scrollbar::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(125, 107, 87, 0.24);
+  background-clip: padding-box;
+}
+
+@keyframes ecg-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes ecg-wave {
+  0% { stroke-dashoffset: 100; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.ecg-pulse {
+  animation: ecg-pulse 2s ease-in-out infinite;
+}
+
+.ecg-wave {
+  stroke-dasharray: 100;
+  animation: ecg-wave 1.5s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ecg-pulse,
+  .ecg-wave {
+    animation: none;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .printable-report,
+  .printable-report * {
+    visibility: visible;
+  }
+
+  .printable-report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 2rem;
+  }
+
+  .printable-report section {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+
+  .printable-report button {
+    display: none !important;
+  }
 }
