@@ -1,13 +1,67 @@
+import { useState } from 'react'
+import toast from 'react-hot-toast'
 import type { DiagnosisResultData } from '@/api'
+import { copyToClipboard, formatReportAsText } from '@/utils/clipboard'
 import { formatConfidence } from '@/utils'
 
 interface DiagnosisReportProps {
   result: DiagnosisResultData
 }
 
-export default function DiagnosisReport({ result }: DiagnosisReportProps) {
+function ProbabilityBar({ prediction, index }: { prediction: { class: string; probability: number; class_en?: string }; index: number }) {
+  const percentage = (prediction.probability * 100).toFixed(1)
+  const isTop3 = index < 3
+
   return (
-    <section className="space-y-8 rounded-[30px] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-[0_22px_55px_rgba(84,69,53,0.08)] md:p-8">
+    <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <p className="truncate text-sm font-semibold text-[var(--ink)]">
+            {prediction.class}
+          </p>
+          <p className="shrink-0 text-sm font-medium text-[var(--ink-soft)]">
+            {percentage}%
+          </p>
+        </div>
+        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[var(--border)]">
+          <div
+            className={`h-full transition-all duration-500 ${
+              isTop3 ? 'bg-[var(--accent)]' : 'bg-[var(--border-strong)]'
+            }`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+        {prediction.class_en && (
+          <p className="mt-1 text-xs text-[var(--ink-muted)]">
+            {prediction.class_en}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function DiagnosisReport({ result }: DiagnosisReportProps) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    const text = formatReportAsText(result)
+    const success = await copyToClipboard(text)
+    if (success) {
+      setCopied(true)
+      toast.success('Report copied to clipboard')
+      setTimeout(() => setCopied(false), 2000)
+    } else {
+      toast.error('Failed to copy report')
+    }
+  }
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  return (
+    <section className="printable-report space-y-8 rounded-[30px] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-[0_22px_55px_rgba(84,69,53,0.08)] md:p-8">
       {/* Overview */}
       <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_220px] md:items-end">
         <div className="space-y-3">
@@ -45,6 +99,24 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
             Report: {result.report.source === 'llm' ? 'LLM enhanced' : 'Template'}
           </p>
         </div>
+      </div>
+
+      {/* Copy / Print Buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={handleCopy}
+          className="rounded-full border border-[var(--border)] bg-white/60 px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-white/80"
+          aria-label="Copy report as text"
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+        <button
+          onClick={handlePrint}
+          className="rounded-full border border-[var(--border)] bg-white/60 px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-white/80"
+          aria-label="Print report"
+        >
+          Print
+        </button>
       </div>
 
       {/* Clinical Interpretation */}
@@ -107,6 +179,26 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
                 </p>
               </div>
             ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* All Probabilities as Bar Charts */}
+      {result.all_probabilities && Object.keys(result.all_probabilities).length > 0 ? (
+        <div className="space-y-4">
+          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
+            All Predictions (Model Probabilities)
+          </p>
+          <div className="space-y-4">
+            {Object.entries(result.all_probabilities)
+              .sort(([, a], [, b]) => b - a)
+              .map(([className, probability], index) => (
+                <ProbabilityBar
+                  key={className}
+                  prediction={{ class: className, probability }}
+                  index={index}
+                />
+              ))}
           </div>
         </div>
       ) : null}
