@@ -388,6 +388,25 @@ describe('workspaceReducer', () => {
     const withImage = workspaceReducer(withPair, { type: 'ADD_FILES', files: [makeImageFile()] })
     expect(withImage.composer.attachments).toHaveLength(1)
     expect(withImage.composer.attachments[0].summary.category).toBe('image')
+    expect(withImage.composer.replacedFileNames).toHaveLength(2)
+  })
+
+  it('tracks replaced dat file name when new dat added', () => {
+    const s = state()
+    const withDat = workspaceReducer(s, { type: 'ADD_FILES', files: [makeDatFile('old.dat')] })
+    const replaced = workspaceReducer(withDat, { type: 'ADD_FILES', files: [makeDatFile('new.dat')] })
+    expect(replaced.composer.attachments).toHaveLength(1)
+    expect(replaced.composer.attachments[0].summary.name).toBe('new.dat')
+    expect(replaced.composer.replacedFileNames).toEqual(['old.dat'])
+  })
+
+  it('CLEAR_REPL_FILES clears replacedFileNames', () => {
+    const s = state()
+    const withDat = workspaceReducer(s, { type: 'ADD_FILES', files: [makeDatFile('old.dat')] })
+    const replaced = workspaceReducer(withDat, { type: 'ADD_FILES', files: [makeDatFile('new.dat')] })
+    expect(replaced.composer.replacedFileNames).toHaveLength(1)
+    const cleared = workspaceReducer(replaced, { type: 'CLEAR_REPL_FILES' })
+    expect(cleared.composer.replacedFileNames).toHaveLength(0)
   })
 
   // --- REMOVE_FILE ---

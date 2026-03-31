@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ConversationMessage as ConversationMessageType } from '@/types/chat'
 import { formatConversationTimestamp } from '@/utils'
 import DiagnosisReport from './DiagnosisReport'
@@ -14,7 +15,7 @@ function renderParagraphs(content: string, className: string) {
   ))
 }
 
-export default function ConversationMessage({ message }: ConversationMessageProps) {
+function ConversationMessage({ message }: ConversationMessageProps) {
   const roleLabel = message.role === 'assistant' ? 'ECG Analyst' : 'You'
 
   return (
@@ -61,3 +62,5 @@ export default function ConversationMessage({ message }: ConversationMessageProp
     </article>
   )
 }
+
+export default memo(ConversationMessage)

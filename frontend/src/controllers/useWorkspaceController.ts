@@ -24,6 +24,7 @@ export interface WorkspaceState {
     attachments: PendingAttachment[]
     pairStatus: 'empty' | 'partial' | 'matched' | 'mismatch' | 'image'
     validationErrors: string[]
+    replacedFileNames: string[]
   }
   submission: {
     activeMessageId: string | null
@@ -65,6 +66,7 @@ export type WorkspaceAction =
   | { type: 'TOGGLE_PERSISTENCE' }
   | { type: 'APPEND_MESSAGE'; sessionId: string; message: ConversationMessage }
   | { type: 'UPDATE_MESSAGE'; sessionId: string; messageId: string; updates: Partial<ConversationMessage> }
+  | { type: 'CLEAR_REPL_FILES' }
 
 // ===== Helpers =====
 
@@ -159,6 +161,7 @@ function createInitialState(): WorkspaceState {
       attachments: [],
       pairStatus: 'empty',
       validationErrors: [],
+      replacedFileNames: [],
     },
     submission: {
       activeMessageId: null,
@@ -182,13 +185,14 @@ function createInitialState(): WorkspaceState {
 function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): WorkspaceState {
   switch (action.type) {
     case 'HYDRATE': {
-      const activeExists = action.sessions.some(s => s.id === action.activeSessionId)
+      const sessions = action.sessions.length > 0 ? action.sessions : [createEmptySession()]
+      const activeExists = sessions.some(s => s.id === action.activeSessionId)
       return {
         ...state,
         persisted: {
           ...state.persisted,
-          sessions: action.sessions,
-          activeSessionId: activeExists ? action.activeSessionId : action.sessions[0]?.id ?? state.persisted.activeSessionId,
+          sessions,
+          activeSessionId: activeExists ? action.activeSessionId : sessions[0].id,
         },
       }
     }
@@ -228,8 +232,11 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
       const hasNewImage = newAttachments.some(a => a.summary.category === 'image')
 
       let merged: PendingAttachment[]
+      const replacedNames: string[] = []
       if (hasNewImage) {
-        // New image replaces everything
+        // New image replaces everything — note any replaced files
+        const existingNames = state.composer.attachments.map(a => a.summary.name)
+        if (existingNames.length > 0) replacedNames.push(...existingNames)
         const imageAttachment = newAttachments.find(a => a.summary.category === 'image')!
         merged = [imageAttachment]
       } else {
@@ -238,6 +245,8 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           existingNonImage.map(a => [a.summary.category, a] as const),
         )
         for (const att of newAttachments) {
+          const existing = byCategory.get(att.summary.category)
+          if (existing && existing.id !== att.id) replacedNames.push(existing.summary.name)
           byCategory.set(att.summary.category, att)
         }
         merged = Array.from(byCategory.values())
@@ -246,6 +255,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
       const pairStatus = calculatePairStatus(merged)
       const validationErrors = [...errors, ...validateAttachments(merged)]
 
+      // Stash replaced names so the hook can toast after dispatch
       return {
         ...state,
         composer: {
@@ -253,6 +263,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: merged,
           pairStatus,
           validationErrors,
+          replacedFileNames: replacedNames,
         },
       }
     }
@@ -275,6 +286,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: [],
           pairStatus: 'empty',
           validationErrors: [],
+      replacedFileNames: [],
         },
       }
     }
@@ -387,6 +399,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: [],
           pairStatus: 'empty',
           validationErrors: [],
+      replacedFileNames: [],
         },
         submission: {
           activeMessageId: null,
@@ -410,6 +423,7 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: [],
           pairStatus: 'empty',
           validationErrors: [],
+      replacedFileNames: [],
         },
         submission: {
           activeMessageId: null,
@@ -449,6 +463,14 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
             attachments: [],
             pairStatus: 'empty',
             validationErrors: [],
+      replacedFileNames: [],
+          },
+          submission: {
+            activeMessageId: null,
+            phase: 'idle',
+            progress: null,
+            error: null,
+            canRetry: false,
           },
         }
       }
@@ -471,8 +493,18 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
               attachments: [],
               pairStatus: 'empty',
               validationErrors: [],
+      replacedFileNames: [],
             }
           : state.composer,
+        submission: isActive
+          ? {
+              activeMessageId: null,
+              phase: 'idle',
+              progress: null,
+              error: null,
+              canRetry: false,
+            }
+          : state.submission,
       }
     }
 
@@ -490,6 +522,14 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
           attachments: [],
           pairStatus: 'empty',
           validationErrors: [],
+      replacedFileNames: [],
+        },
+        submission: {
+          activeMessageId: null,
+          phase: 'idle',
+          progress: null,
+          error: null,
+          canRetry: false,
         },
       }
     }
@@ -542,6 +582,13 @@ function workspaceReducer(state: WorkspaceState, action: WorkspaceAction): Works
       }
     }
 
+    case 'CLEAR_REPL_FILES': {
+      return {
+        ...state,
+        composer: { ...state.composer, replacedFileNames: [] },
+      }
+    }
+
     default:
       return state
   }
@@ -578,6 +625,15 @@ export function useWorkspaceController() {
     }
   }, [state.persisted])
 
+  // Notify when attachments are replaced
+  useEffect(() => {
+    const names = state.composer.replacedFileNames
+    if (names.length > 0) {
+      toast(`Replaced: ${names.join(', ')}`, { icon: '🔄' })
+      dispatch({ type: 'CLEAR_REPL_FILES' })
+    }
+  }, [state.composer.replacedFileNames])
+
   // Derived
   const activeSession = state.persisted.sessions.find(s => s.id === state.persisted.activeSessionId) ?? null
   const isSubmitting = state.submission.phase === 'uploading' || state.submission.phase === 'processing'
@@ -585,9 +641,52 @@ export function useWorkspaceController() {
   // Submit
   const submit = useCallback(async () => {
     if (!activeSession || isSubmitting) return
-    const hasContent = state.composer.draft.trim() || state.composer.attachments.length > 0
-    if (!hasContent) { toast.error('Add a note or attach an ECG study to continue.'); return }
+    const hasDraft = state.composer.draft.trim().length > 0
+    const hasAttachments = state.composer.attachments.length > 0
+    if (!hasDraft && !hasAttachments) { toast.error('Add a note or attach an ECG study to continue.'); return }
 
+    // Text-only notes: add guidance message, no API call
+    if (!hasAttachments && hasDraft) {
+      const userMessage: ConversationMessage = {
+        id: createId(),
+        role: 'user',
+        type: 'prompt',
+        title: 'Clinical note',
+        content: state.composer.draft.trim(),
+        createdAt: new Date().toISOString(),
+      }
+      const guidanceMessage: ConversationMessage = {
+        id: createId(),
+        role: 'assistant',
+        type: 'guidance',
+        content: 'I can keep notes and findings in this workspace, but diagnosis still starts with an ECG upload. Attach a PNG/JPG image or a matched .dat + .hea pair when you are ready.',
+        createdAt: new Date().toISOString(),
+      }
+      dispatch({ type: 'APPEND_MESSAGE', sessionId: activeSession.id, message: userMessage })
+      dispatch({ type: 'APPEND_MESSAGE', sessionId: activeSession.id, message: guidanceMessage })
+      dispatch({ type: 'CLEAR_COMPOSER' })
+      return
+    }
+
+    // Validate file combination before submitting
+    if (state.composer.validationErrors.length > 0) {
+      toast.error(state.composer.validationErrors[0])
+      return
+    }
+
+    // Add user message FIRST
+    const userMessage: ConversationMessage = {
+      id: createId(),
+      role: 'user',
+      type: 'prompt',
+      title: state.composer.attachments.length > 0 ? 'Submitted ECG for review' : 'Clinical note',
+      content: state.composer.draft.trim() || 'Please analyze the attached ECG study.',
+      createdAt: new Date().toISOString(),
+      attachments: state.composer.attachments.map(a => a.summary),
+    }
+    dispatch({ type: 'APPEND_MESSAGE', sessionId: activeSession.id, message: userMessage })
+
+    // Add pending message AFTER user message
     const pendingMessageId = createId()
     const pendingMessage: ConversationMessage = {
       id: pendingMessageId,
@@ -600,20 +699,9 @@ export function useWorkspaceController() {
     dispatch({ type: 'APPEND_MESSAGE', sessionId: activeSession.id, message: pendingMessage })
     dispatch({ type: 'SUBMIT_STARTED', messageId: pendingMessageId })
 
-    // Also add user message
-    const userMessage: ConversationMessage = {
-      id: createId(),
-      role: 'user',
-      type: 'prompt',
-      title: state.composer.attachments.length > 0 ? 'Submitted ECG for review' : 'Clinical note',
-      content: state.composer.draft.trim() || 'Please analyze the attached ECG study.',
-      createdAt: new Date().toISOString(),
-      attachments: state.composer.attachments.map(a => a.summary),
-    }
-    dispatch({ type: 'APPEND_MESSAGE', sessionId: activeSession.id, message: userMessage })
-
     lastFilesRef.current = state.composer.attachments.map(a => a.file)
     abortControllerRef.current = new AbortController()
+    const currentAbortController = abortControllerRef.current
 
     try {
       const imageFile = state.composer.attachments.find(a => a.summary.category === 'image')?.file
@@ -622,19 +710,31 @@ export function useWorkspaceController() {
 
       let result: DiagnosisResultData
       if (imageFile) {
-        result = await diagnosisApi.diagnoseImage(imageFile, (p) => dispatch({ type: 'SUBMIT_UPLOAD_PROGRESS', progress: p }), abortControllerRef.current.signal)
+        result = await diagnosisApi.diagnoseImage(imageFile, (p) => {
+          if (!currentAbortController.signal.aborted) {
+            dispatch({ type: 'SUBMIT_UPLOAD_PROGRESS', progress: p })
+          }
+        }, currentAbortController.signal)
       } else if (datFile && heaFile) {
-        result = await diagnosisApi.diagnoseDatPair(datFile, heaFile, (p) => dispatch({ type: 'SUBMIT_UPLOAD_PROGRESS', progress: p }), abortControllerRef.current.signal)
+        result = await diagnosisApi.diagnoseDatPair(datFile, heaFile, (p) => {
+          if (!currentAbortController.signal.aborted) {
+            dispatch({ type: 'SUBMIT_UPLOAD_PROGRESS', progress: p })
+          }
+        }, currentAbortController.signal)
       } else {
         throw new Error('Invalid file combination')
       }
 
-      dispatch({ type: 'SUBMIT_PROCESSING' })
-      dispatch({ type: 'UPDATE_MESSAGE', sessionId: activeSession.id, messageId: pendingMessageId, updates: { status: 'completed', content: 'Analysis complete', result } })
-      dispatch({ type: 'SUBMIT_SUCCEEDED', result })
-      dispatch({ type: 'CLEAR_COMPOSER' })
-      toast.success('Diagnosis complete.')
+      // Upload complete, now processing
+      if (!currentAbortController.signal.aborted) {
+        dispatch({ type: 'SUBMIT_PROCESSING' })
+        dispatch({ type: 'UPDATE_MESSAGE', sessionId: activeSession.id, messageId: pendingMessageId, updates: { status: 'completed', content: 'Analysis complete', result } })
+        dispatch({ type: 'SUBMIT_SUCCEEDED', result })
+        dispatch({ type: 'CLEAR_COMPOSER' })
+        toast.success('Diagnosis complete.')
+      }
     } catch (error: unknown) {
+      if (currentAbortController.signal.aborted) return // Cancelled, don't show error
       const errorMessage = error instanceof Error ? error.message : 'Analysis failed'
       dispatch({ type: 'UPDATE_MESSAGE', sessionId: activeSession.id, messageId: pendingMessageId, updates: { status: 'error', errorDetail: errorMessage } })
       dispatch({ type: 'SUBMIT_FAILED', error: errorMessage })
