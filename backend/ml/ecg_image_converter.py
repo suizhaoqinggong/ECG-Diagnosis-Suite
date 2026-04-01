@@ -5,10 +5,13 @@ Converts ECG images to 1D signal format for ResNet1D model
 """
 import cv2
 import numpy as np
+import logging
 from typing import Tuple, Optional
 import torch
 
 from ml.pipeline_types import ExtractionResult, LeadQC
+
+logger = logging.getLogger(__name__)
 
 
 class ECGImageToSignal:
@@ -47,6 +50,211 @@ class ECGImageToSignal:
         result = self.extract_with_result(image, lead_positions)
         return result.signals
 
+    def _suppress_grid_lines(self, image_rgb: np.ndarray) -> np.ndarray:
+        """
+        Suppress grid lines from an ECG image, preserving traces.
+
+        Uses two strategies:
+        1. Color-based suppression: If the image has colored grid lines
+           (common on ECG paper: red/pink grid, black traces), detect and
+           suppress them via HSV saturation analysis.
+        2. Periodic-line suppression: Detect horizontal/vertical lines that
+           are much denser than typical ECG traces and suppress them.
+
+        Args:
+            image_rgb: Input image, either [H, W, 3] (RGB) or [H, W] (grayscale).
+
+        Returns:
+            Grayscale image [H, W] with grid lines suppressed.
+        """
+        # Handle 2-D (grayscale) input directly
+        if image_rgb.ndim == 2:
+            return self._suppress_grid_lines_grayscale(image_rgb)
+
+        h, w, c = image_rgb.shape
+        assert c == 3, f"Expected 3-channel image, got {c}"
+
+        # Check if the image actually has color information
+        # If all channels are nearly identical, treat as grayscale
+        r, g, b = image_rgb[:, :, 0], image_rgb[:, :, 1], image_rgb[:, :, 2]
+        channel_diff = float(
+            np.mean(np.abs(r.astype(np.int16) - g.astype(np.int16)))
+            + np.mean(np.abs(r.astype(np.int16) - b.astype(np.int16)))
+        ) / 2.0
+
+        if channel_diff < 5.0:
+            # Essentially grayscale — use conservative path
+            gray = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
+            return self._suppress_grid_lines_grayscale(gray)
+
+        # --- Color-based suppression ---
+        # Convert to HSV to separate saturation (color) from value (brightness)
+        hsv = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2HSV)
+        saturation = hsv[:, :, 1].astype(np.float32)
+        value = hsv[:, :, 2].astype(np.float32)
+
+        # Grid lines on ECG paper typically have noticeable saturation (colored),
+        # while traces are dark and low-saturation (black ink).
+        # Build a "trace likelihood" map:
+        #   - Dark pixels (low value) -> high trace likelihood
+        #   - Saturated pixels (high saturation) -> low trace likelihood (likely grid)
+        #   - Dark + saturated -> could be either, but dark dominates
+
+        # Trace score: higher for dark, low-saturation pixels
+        # Normalize value to [0, 1] range for scoring
+        value_norm = value / 255.0
+        sat_norm = saturation / 255.0
+
+        # Trace likelihood: dark pixels score high, bright saturated pixels score low
+        # Using: trace_score = (1 - value_norm) * (1 - sat_norm * 0.5)
+        # This means:
+        #   - Very dark (value_norm~0) => high score regardless of saturation
+        #   - Bright + saturated => low score (grid)
+        #   - Bright + unsaturated => medium score (background)
+        trace_score = (1.0 - value_norm) * (1.0 - sat_norm * 0.5)
+
+        # Convert trace_score to grayscale image where traces are dark
+        # Invert: high trace_score -> dark pixel (we want traces dark for downstream)
+        # But we want the OUTPUT to be a grayscale image where:
+        #   - traces are dark
+        #   - grid lines are bright (suppressed)
+        # So: output = (1 - trace_score) * 255
+        result = ((1.0 - trace_score) * 255.0).astype(np.uint8)
+
+        # --- Periodic line suppression ---
+        result = self._suppress_periodic_lines(result)
+
+        # --- Safety check: if suppression removed too much, fall back ---
+        # Count dark pixels (potential content) in the result
+        dark_ratio = float(np.mean(result < 80))
+        if dark_ratio > 0.50:
+            # Too much content would be lost — use standard grayscale instead
+            logger.debug(
+                "Grid suppression would remove %.0f%% of content (> 50%%), "
+                "falling back to standard grayscale",
+                dark_ratio * 100,
+            )
+            return cv2.cvtColor(image_rgb, cv2.COLOR_RGB2GRAY)
+
+        return result
+
+    def _suppress_grid_lines_grayscale(self, gray: np.ndarray) -> np.ndarray:
+        """
+        Conservative grid suppression for grayscale-only images.
+
+        Uses morphological operations to remove thin lines while preserving
+        thicker traces. Very conservative to avoid deleting real traces.
+        """
+        # Apply a small morphological opening to remove thin grid lines
+        # but preserve thicker ECG traces.
+        # Kernel size must be small to be conservative.
+        kernel_h = np.ones((1, 3), dtype=np.uint8)  # Horizontal kernel
+        kernel_v = np.ones((3, 1), dtype=np.uint8)  # Vertical kernel
+
+        # Opening removes thin bright structures on dark background.
+        # Since grid lines in grayscale ECG are usually thin and
+        # traces are thicker, this should help.
+        opened = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel_h)
+        opened = cv2.morphologyEx(opened, cv2.MORPH_OPEN, kernel_v)
+
+        # Blend: use opened version only where it helps (remove thin lines)
+        # If opening removed too much, stick with original
+        diff = cv2.absdiff(gray, opened)
+        mean_diff = float(np.mean(diff))
+
+        # If the morphological operation barely changed anything, return original
+        if mean_diff < 2.0:
+            return gray
+
+        # Otherwise, blend: take the darker of the two to preserve traces
+        result = np.minimum(gray, opened)
+
+        # Safety check
+        dark_ratio = float(np.mean(result < 80))
+        if dark_ratio > 0.50:
+            return gray
+
+        return result
+
+    def _suppress_periodic_lines(self, gray: np.ndarray) -> np.ndarray:
+        """
+        Detect and suppress periodic horizontal/vertical grid lines
+        using row/column occupancy analysis.
+
+        Args:
+            gray: Grayscale image [H, W].
+
+        Returns:
+            Grayscale image with periodic grid lines suppressed.
+        """
+        h, w = gray.shape
+        result = gray.copy()
+
+        # Binarize for occupancy analysis: dark pixels are foreground
+        # Use adaptive threshold to be robust across different brightness levels
+        mean_val = float(np.mean(gray))
+        _, binary = cv2.threshold(gray, int(mean_val * 0.7), 255, cv2.THRESH_BINARY_INV)
+
+        # --- Horizontal grid lines ---
+        row_occupancy = np.sum(binary > 0, axis=1).astype(np.float64) / w
+        median_occupancy = float(np.median(row_occupancy))
+
+        if median_occupancy > 0.001:
+            # Grid lines have much higher occupancy than typical trace rows
+            grid_threshold = median_occupancy * 3.0
+            grid_rows = row_occupancy > grid_threshold
+
+            # Also require periodicity: grid lines repeat at regular intervals
+            # Find the dominant period via autocorrelation of the grid row signal
+            grid_signal = grid_rows.astype(np.float64)
+            if np.sum(grid_signal) > 2:
+                # Check periodicity via FFT
+                fft = np.fft.rfft(grid_signal - np.mean(grid_signal))
+                magnitudes = np.abs(fft[1:])  # Skip DC component
+                if len(magnitudes) > 0:
+                    peak_idx = np.argmax(magnitudes) + 1
+                    if peak_idx < len(fft):
+                        # Only suppress if there's clear periodicity
+                        peak_magnitude = magnitudes[peak_idx - 1]
+                        mean_magnitude = float(np.mean(magnitudes))
+                        if peak_magnitude > mean_magnitude * 3.0:
+                            # Periodic grid detected — suppress those rows
+                            for y in range(h):
+                                if grid_rows[y]:
+                                    # Replace with interpolated value from neighbors
+                                    above = max(y - 1, 0)
+                                    below = min(y + 1, h - 1)
+                                    # Use the brighter neighbor (background) to fill
+                                    result[y, :] = np.maximum(result[above, :], result[below, :])
+
+        # --- Vertical grid lines (less aggressive) ---
+        col_occupancy = np.sum(binary > 0, axis=0).astype(np.float64) / h
+        median_col_occupancy = float(np.median(col_occupancy))
+
+        if median_col_occupancy > 0.001:
+            # Less aggressive threshold for columns since traces span horizontally
+            grid_col_threshold = median_col_occupancy * 4.0
+            grid_cols = col_occupancy > grid_col_threshold
+
+            # Check periodicity for columns too
+            col_signal = grid_cols.astype(np.float64)
+            if np.sum(col_signal) > 2:
+                fft = np.fft.rfft(col_signal - np.mean(col_signal))
+                magnitudes = np.abs(fft[1:])
+                if len(magnitudes) > 0:
+                    peak_idx = np.argmax(magnitudes) + 1
+                    if peak_idx < len(fft):
+                        peak_magnitude = magnitudes[peak_idx - 1]
+                        mean_magnitude = float(np.mean(magnitudes))
+                        if peak_magnitude > mean_magnitude * 3.0:
+                            for x in range(w):
+                                if grid_cols[x]:
+                                    left = max(x - 1, 0)
+                                    right = min(x + 1, w - 1)
+                                    result[:, x] = np.maximum(result[:, left], result[:, right])
+
+        return result
+
     def extract_with_result(
         self,
         image: np.ndarray,
@@ -65,11 +273,8 @@ class ECGImageToSignal:
         Returns:
             ExtractionResult with signals and QC metadata
         """
-        # Convert to grayscale if needed
-        if len(image.shape) == 3:
-            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        else:
-            gray = image
+        # Grid suppression step: suppress grid lines before binarization
+        gray = self._suppress_grid_lines(image)
 
         # Threshold to get ECG trace
         _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
