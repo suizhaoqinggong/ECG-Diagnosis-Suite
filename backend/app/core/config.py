@@ -25,15 +25,29 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "data/uploads"
     ALLOWED_EXTENSIONS: List[str] = [".png", ".jpg", ".jpeg", ".dat", ".hea"]
 
+    # Image processing limits
+    IMAGE_MAX_PIXELS: int = 178_956_970  # ~178MP, Pillow default threshold
+    IMAGE_MAX_DIMENSION: int = 16000  # Max single dimension (width or height)
+    IMAGE_PROCESSING_MAX_DIMENSION: int = 4096  # Downsample threshold for large images
+
     # Model settings
-    MODEL_PATH: str = "models/weights/ecg_model.pth"
-    ONNX_MODEL_PATH: str = "models/weights/ecg_model.onnx"
     MODEL_CHECKPOINT_PATH: Optional[str] = None
     DEVICE: str = "cpu"
     CONFIDENCE_THRESHOLD: float = 0.7
 
     # Report settings
     REPORT_OUTPUT_DIR: str = "data/reports"
+    LLM_REPORT_ENABLED: bool = False
+    LLM_REPORT_PROVIDER: str = "openai"
+    OPENAI_API_KEY: Optional[str] = None
+    OPENAI_BASE_URL: str = "https://api.openai.com/v1"
+    OPENAI_REPORT_MODEL: str = "gpt-4o-mini"
+    OPENAI_TIMEOUT_SECONDS: int = 30
+    ANTHROPIC_COMPAT_API_KEY: Optional[str] = None
+    ANTHROPIC_COMPAT_BASE_URL: str = "https://open.bigmodel.cn/api/anthropic"
+    ANTHROPIC_COMPAT_MODEL: str = "glm-5"
+    ANTHROPIC_COMPAT_MAX_TOKENS: int = 2048
+    ANTHROPIC_COMPAT_TIMEOUT_SECONDS: int = 30
 
     # CORS settings
     CORS_ORIGINS: List[str] = [
