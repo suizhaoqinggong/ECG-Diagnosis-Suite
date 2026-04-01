@@ -228,6 +228,102 @@ class ECGImageToSignal:
 
         return result
 
+    def _extract_trace_centroid(self, strip: np.ndarray) -> np.ndarray:
+        """
+        Extract a 1D trace signal from a binary strip using continuity-constrained
+        vertical run tracking.
+
+        For each column:
+        1. Find vertical runs of dark pixels (foreground)
+        2. Filter: reject runs shorter than 2px or taller than 40% of strip height
+        3. Compute the center Y of each valid run
+        4. Select the run closest to the previous column's center (continuity)
+        5. Interpolate gaps from neighbors
+        6. Invert so upward deflection = positive
+        7. Light smoothing
+
+        Args:
+            strip: Binary image [H, W] where 0=background, 255=foreground.
+
+        Returns:
+            1D signal array of length W with NaN gaps interpolated.
+        """
+        h, w = strip.shape
+        signal = np.full(w, np.nan, dtype=np.float64)
+
+        min_run_len = 2
+        max_run_len = int(h * 0.4)
+
+        prev_center: float | None = None
+
+        for col in range(w):
+            column = strip[:, col]
+
+            # Find vertical runs of foreground pixels
+            runs = []
+            in_run = False
+            run_start = 0
+            for row in range(h):
+                if column[row] > 0:
+                    if not in_run:
+                        in_run = True
+                        run_start = row
+                else:
+                    if in_run:
+                        in_run = False
+                        run_len = row - run_start
+                        if min_run_len <= run_len <= max_run_len:
+                            center = run_start + run_len / 2.0
+                            runs.append(center)
+            # Handle run that extends to the bottom edge
+            if in_run:
+                run_len = h - run_start
+                if min_run_len <= run_len <= max_run_len:
+                    center = run_start + run_len / 2.0
+                    runs.append(center)
+
+            if not runs:
+                continue
+
+            if prev_center is None:
+                # First column: pick the run closest to the strip center
+                best = min(runs, key=lambda c: abs(c - h / 2.0))
+            else:
+                # Continuity: pick the run closest to previous center
+                best = min(runs, key=lambda c: abs(c - prev_center))
+
+            signal[col] = best
+            prev_center = best
+
+        # Interpolate NaN gaps from neighbors
+        nan_mask = np.isnan(signal)
+        if np.any(nan_mask) and not np.all(nan_mask):
+            valid_indices = np.where(~nan_mask)[0]
+            signal[nan_mask] = np.interp(
+                np.where(nan_mask)[0],
+                valid_indices,
+                signal[valid_indices],
+            )
+
+        # If all NaN (empty strip), return zeros
+        if np.all(np.isnan(signal)):
+            return np.zeros(w, dtype=np.float64)
+
+        # Invert: upward deflection = positive (y=0 is top, so subtract from strip center)
+        signal = (h / 2.0) - signal
+
+        # Light Savitzky-Golay smoothing
+        if len(signal) >= 7:
+            try:
+                from scipy.signal import savgol_filter
+                signal = savgol_filter(signal, window_length=min(11, len(signal) if len(signal) % 2 == 1 else len(signal) - 1), polyorder=3)
+            except ImportError:
+                # Fallback: simple moving average
+                kernel = np.ones(5) / 5.0
+                signal = np.convolve(signal, kernel, mode='same')
+
+        return signal
+
     def extract_with_result(
         self,
         image: np.ndarray,
@@ -271,8 +367,8 @@ class ECGImageToSignal:
             coverage = float(np.mean(col_has_content > 0.02))
             valid_column_ratio = float(np.mean(col_has_content > 0.005))
 
-            # Extract signal
-            signal_1d = np.mean(strip, axis=0)
+            # Extract signal using continuity-constrained centroid tracking
+            signal_1d = self._extract_trace_centroid(strip)
 
             # Count interpolated (near-zero variance) columns
             interpolated = int(np.sum(signal_1d < 1e-6))
