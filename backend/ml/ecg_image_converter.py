@@ -228,6 +228,42 @@ class ECGImageToSignal:
 
         return result
 
+    def _normalize_shared(
+        self, signals: np.ndarray, baselines: np.ndarray
+    ) -> np.ndarray:
+        """
+        Shared normalization preserving inter-lead amplitude relationships.
+
+        1. Per-lead baseline removal (subtract median)
+        2. Percentile clipping (1st-99th) for robustness to outliers
+        3. Shared scaling using global robust range across all leads
+
+        Args:
+            signals: Raw signals [num_leads, signal_length]
+            baselines: Per-lead baseline values [num_leads]
+
+        Returns:
+            Normalized signals [num_leads, signal_length]
+        """
+        result = signals.copy().astype(np.float64)
+
+        # Step 1: Per-lead baseline removal
+        for i in range(len(result)):
+            result[i] -= baselines[i]
+
+        # Step 2: Shared scaling from global robust range
+        # Use 1st-99th percentile range for outlier robustness
+        p1 = float(np.percentile(result, 1))
+        p99 = float(np.percentile(result, 99))
+        shared_range = p99 - p1
+
+        if shared_range > 1e-8:
+            result /= shared_range
+        else:
+            result = np.zeros_like(result)
+
+        return result
+
     def extract_with_result(
         self,
         image: np.ndarray,
@@ -256,6 +292,7 @@ class ECGImageToSignal:
         strip_height = height // self.num_leads
 
         signals = []
+        raw_signals = []
         per_lead_qc: list[LeadQC] = []
         total_interpolated = 0
         total_columns = 0
@@ -323,11 +360,19 @@ class ECGImageToSignal:
                 quality=quality,
             ))
 
-            # Normalize
-            signal_1d = (signal_1d - signal_1d.min()) / (signal_1d.max() - signal_1d.min() + 1e-8)
+            # Store raw signal for shared normalization (deferred)
+            raw_signals.append(signal_1d.copy())
+
+        # --- Shared normalization across all leads ---
+        raw_array = np.array(raw_signals, dtype=np.float64)
+        baselines = np.array([float(np.median(s)) for s in raw_signals])
+        normalized = self._normalize_shared(raw_array, baselines)
+
+        for i in range(self.num_leads):
+            signal_1d = normalized[i].astype(np.float32)
 
             # Resize to desired length
-            signal_1d = cv2.resize(signal_1d, (1, self.signal_length))
+            signal_1d = cv2.resize(signal_1d.reshape(-1, 1), (1, self.signal_length))
             signal_1d = signal_1d.flatten()
 
             signals.append(signal_1d)
