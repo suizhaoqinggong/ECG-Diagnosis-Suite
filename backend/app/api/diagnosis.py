@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from PIL import Image
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -42,6 +42,8 @@ class DiagnosisResponse(BaseModel):
     top3_predictions: Optional[List[Dict[str, Any]]] = None
     detected_labels: Optional[List[str]] = None  # All labels above threshold
     secondary_findings: Optional[List[str]] = None  # Non-primary detected labels
+    quality_warning: Optional[str] = None  # "pass", "warn", or "fail"
+    pipeline_warnings: List[str] = Field(default_factory=list)  # Human-readable quality messages
     report: DiagnosisEnhancedReport
     disclaimer: str = "本结果仅供参考，不作为临床诊断依据"
 
@@ -344,11 +346,39 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
         print(f"   Prediction: {result['prediction']}")
         print(f"   Confidence: {result['confidence']:.2%}")
 
-        return await _create_diagnosis_response(
+        # 提取信号质量元数据
+        from ml.pipeline_types import ExtractionResult
+
+        extraction_qc: ExtractionResult | None = result.get("extraction_qc")
+        quality_warning = None
+        pipeline_warnings: list[str] = []
+
+        if extraction_qc is not None:
+            quality_warning = extraction_qc.overall_quality
+            # Build human-readable warnings from per-lead QC
+            for qc in extraction_qc.per_lead_qc:
+                if qc.quality in ("fail", "poor"):
+                    pipeline_warnings.append(
+                        f"导联 {qc.lead_index} 信号提取质量较差 "
+                        f"(覆盖率: {qc.coverage:.1%}, 质量: {qc.quality})"
+                    )
+            if extraction_qc.interpolated_ratio > 0.3:
+                pipeline_warnings.append(
+                    f"信号插值比例较高 ({extraction_qc.interpolated_ratio:.1%})"
+                )
+            # Forward converter-level warnings and issues
+            pipeline_warnings.extend(extraction_qc.warnings)
+            for issue in extraction_qc.issues:
+                pipeline_warnings.append(issue.message)
+
+        response = await _create_diagnosis_response(
             file_reference=file.filename,
             result=result,
             input_mode="image",
         )
+        response.quality_warning = quality_warning
+        response.pipeline_warnings = pipeline_warnings
+        return response
 
     except HTTPException:
         # 重新抛出 HTTP 异常（包括图像解码错误 400）

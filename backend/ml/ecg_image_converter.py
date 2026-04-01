@@ -8,6 +8,8 @@ import numpy as np
 from typing import Tuple, Optional
 import torch
 
+from ml.pipeline_types import ExtractionResult, LeadQC
+
 
 class ECGImageToSignal:
     """
@@ -42,6 +44,27 @@ class ECGImageToSignal:
         Returns:
             signals: Extracted signals [num_leads, signal_length]
         """
+        result = self.extract_with_result(image, lead_positions)
+        return result.signals
+
+    def extract_with_result(
+        self,
+        image: np.ndarray,
+        lead_positions: Optional[list] = None,
+    ) -> ExtractionResult:
+        """
+        Extract signals with QC metadata.
+
+        Same as extract_lead_signals() but returns ExtractionResult with
+        per-lead quality metrics.
+
+        Args:
+            image: ECG image array [H, W, C] or [H, W]
+            lead_positions: Positions of each lead in the image
+
+        Returns:
+            ExtractionResult with signals and QC metadata
+        """
         # Convert to grayscale if needed
         if len(image.shape) == 3:
             gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -51,21 +74,76 @@ class ECGImageToSignal:
         # Threshold to get ECG trace
         _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
 
-        # Simple approach: divide image into 12 horizontal strips
-        # Each strip represents one lead
         height, width = binary.shape
         strip_height = height // self.num_leads
 
         signals = []
+        per_lead_qc: list[LeadQC] = []
+        total_interpolated = 0
+        total_columns = 0
+        fallback_used = False
+
         for i in range(self.num_leads):
-            # Extract strip for this lead
             y_start = i * strip_height
             y_end = (i + 1) * strip_height
             strip = binary[y_start:y_end, :]
 
-            # Find the ECG trace in this strip
-            # Simple: take the column-wise average (or median)
+            # Compute per-strip QC before extraction
+            col_has_content = np.mean(strip > 0, axis=0)
+            coverage = float(np.mean(col_has_content > 0.02))
+            valid_column_ratio = float(np.mean(col_has_content > 0.005))
+
+            # Extract signal
             signal_1d = np.mean(strip, axis=0)
+
+            # Count interpolated (near-zero variance) columns
+            interpolated = int(np.sum(signal_1d < 1e-6))
+            total_interpolated += interpolated
+            total_columns += len(signal_1d)
+            interpolated_ratio = interpolated / max(len(signal_1d), 1)
+
+            # Signal flatness (std of the extracted signal)
+            flatness = float(np.std(signal_1d))
+
+            # Jump rate: fraction of columns where signal jumps > 20% of strip height
+            if len(signal_1d) > 1:
+                diffs = np.abs(np.diff(signal_1d))
+                jump_threshold = strip_height * 0.20
+                jump_rate = float(np.mean(diffs > jump_threshold))
+            else:
+                jump_rate = 0.0
+
+            # Clipped ratio: fraction at min or max
+            clipped_ratio = 0.0  # For mean-based extraction, clipping is rare
+
+            # SNR estimate: signal std / noise floor
+            if flatness > 0:
+                noise_floor = float(np.median(signal_1d[signal_1d < np.median(signal_1d)])) if np.any(signal_1d < np.median(signal_1d)) else 0.0
+                snr_estimate = flatness / max(noise_floor, 1e-8)
+            else:
+                snr_estimate = None
+
+            # Quality classification
+            if coverage < 0.02:
+                quality = "fail"
+            elif coverage < 0.10 or flatness < 1.0:
+                quality = "poor"
+            elif coverage < 0.30:
+                quality = "warn"
+            else:
+                quality = "good"
+
+            per_lead_qc.append(LeadQC(
+                lead_index=i,
+                flatness=flatness,
+                coverage=coverage,
+                valid_column_ratio=valid_column_ratio,
+                interpolated_ratio=interpolated_ratio,
+                jump_rate=jump_rate,
+                clipped_ratio=clipped_ratio,
+                snr_estimate=snr_estimate,
+                quality=quality,
+            ))
 
             # Normalize
             signal_1d = (signal_1d - signal_1d.min()) / (signal_1d.max() - signal_1d.min() + 1e-8)
@@ -76,10 +154,33 @@ class ECGImageToSignal:
 
             signals.append(signal_1d)
 
-        # Stack all leads
-        signals = np.array(signals)  # [num_leads, signal_length]
+        signals_array = np.array(signals, dtype=np.float32)
 
-        return signals
+        # Overall quality
+        failed_leads = sum(1 for qc in per_lead_qc if qc.quality == "fail")
+        poor_leads = sum(1 for qc in per_lead_qc if qc.quality in ("fail", "poor"))
+
+        if failed_leads > self.num_leads // 2:
+            overall_quality = "fail"
+        elif poor_leads > self.num_leads // 3:
+            overall_quality = "warn"
+        else:
+            overall_quality = "pass"
+
+        interpolated_ratio = total_interpolated / max(total_columns, 1)
+
+        return ExtractionResult(
+            signals=signals_array,
+            layout_method="horizontal_strips",
+            layout_score=1.0,
+            fallback_used=fallback_used,
+            interpolated_columns=total_interpolated,
+            interpolated_ratio=interpolated_ratio,
+            per_lead_qc=per_lead_qc,
+            warnings=[],
+            issues=[],
+            overall_quality=overall_quality,
+        )
 
     def __call__(self, image: np.ndarray) -> torch.Tensor:
         """
