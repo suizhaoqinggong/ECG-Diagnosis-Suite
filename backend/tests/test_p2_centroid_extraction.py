@@ -220,7 +220,7 @@ class TestCentroidExtractionBasic:
         converter = ECGImageToSignal()
         strip = _horizontal_line_strip(row=30, height=100, width=200)
 
-        result = converter._extract_trace_centroid(strip)
+        result, gap_count = converter._extract_trace_centroid(strip)
 
         assert isinstance(result, np.ndarray), (
             f"Expected np.ndarray, got {type(result)}"
@@ -236,7 +236,7 @@ class TestCentroidExtractionBasic:
         row = 30
         strip = _horizontal_line_strip(row=row, height=100, width=200)
 
-        signal = converter._extract_trace_centroid(strip)
+        signal, _ = converter._extract_trace_centroid(strip)
 
         # After inversion (y increases downward, so invert),
         # the signal value should correspond to row 30.
@@ -268,7 +268,7 @@ class TestCentroidExtractionBasic:
             height=100, width=200, y_center=50, amplitude=20, frequency=3.0,
         )
 
-        signal = converter._extract_trace_centroid(strip)
+        signal, _ = converter._extract_trace_centroid(strip)
 
         assert not np.any(np.isnan(signal)), (
             "Signal should have no NaN for a continuous sine-wave trace"
@@ -294,7 +294,7 @@ class TestCentroidExtractionBasic:
             gap_start=gap_start, gap_end=gap_end,
         )
 
-        signal = converter._extract_trace_centroid(strip)
+        signal, _ = converter._extract_trace_centroid(strip)
 
         # Signal should have no NaN in the gap region
         gap_signal = signal[gap_start:gap_end]
@@ -326,7 +326,7 @@ class TestCentroidExtractionBasic:
         converter = ECGImageToSignal()
         strip = _white_strip(height=100, width=200)
 
-        signal = converter._extract_trace_centroid(strip)
+        signal, _ = converter._extract_trace_centroid(strip)
 
         # The signal should still be a 1-D array of the correct length
         assert signal.ndim == 1
@@ -358,7 +358,7 @@ class TestRunFiltering:
             trace_row=trace_row, noise_row=noise_row, noise_col=noise_col,
         )
 
-        signal = converter._extract_trace_centroid(strip)
+        signal, _ = converter._extract_trace_centroid(strip)
 
         # The signal at the noise column should still follow the trace at row 50,
         # not jump to row 20 where the noise is.
@@ -384,7 +384,7 @@ class TestRunFiltering:
             trace_row=trace_row, dark_col=dark_col,
         )
 
-        signal = converter._extract_trace_centroid(strip)
+        signal, _ = converter._extract_trace_centroid(strip)
 
         # At dark_col, the signal should follow the trace, not jump to some
         # average of the full-column dark region.
@@ -413,7 +413,7 @@ class TestRunFiltering:
             artifact_col=artifact_col, artifact_width=3,
         )
 
-        signal = converter._extract_trace_centroid(strip)
+        signal, _ = converter._extract_trace_centroid(strip)
 
         # The artifact is at row 20, far from the trace at row 50.
         # The continuity constraint should select the run at row 50.
@@ -446,7 +446,7 @@ class TestSignalInversion:
         converter = ECGImageToSignal()
         strip, true_y = _make_upward_deflection_strip(height=100, width=200)
 
-        signal = converter._extract_trace_centroid(strip)
+        signal, _ = converter._extract_trace_centroid(strip)
 
         assert not np.any(np.isnan(signal)), "Signal should have no NaN"
 

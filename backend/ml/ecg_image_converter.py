@@ -246,12 +246,12 @@ class ECGImageToSignal:
             strip: Binary image [H, W] where 0=background, 255=foreground.
 
         Returns:
-            1D signal array of length W with NaN gaps interpolated.
+            Tuple of (1D signal array of length W, count of gap-interpolated columns).
         """
         h, w = strip.shape
         signal = np.full(w, np.nan, dtype=np.float64)
 
-        min_run_len = 2
+        min_run_len = 1
         max_run_len = int(h * 0.4)
 
         prev_center: float | None = None
@@ -295,6 +295,9 @@ class ECGImageToSignal:
             signal[col] = best
             prev_center = best
 
+        # Count gap-interpolated columns before filling
+        interpolated_count = int(np.sum(np.isnan(signal)))
+
         # Interpolate NaN gaps from neighbors
         nan_mask = np.isnan(signal)
         if np.any(nan_mask) and not np.all(nan_mask):
@@ -307,7 +310,7 @@ class ECGImageToSignal:
 
         # If all NaN (empty strip), return zeros
         if np.all(np.isnan(signal)):
-            return np.zeros(w, dtype=np.float64)
+            return np.zeros(w, dtype=np.float64), w
 
         # Invert: upward deflection = positive (y=0 is top, so subtract from strip center)
         signal = (h / 2.0) - signal
@@ -322,7 +325,7 @@ class ECGImageToSignal:
                 kernel = np.ones(5) / 5.0
                 signal = np.convolve(signal, kernel, mode='same')
 
-        return signal
+        return signal, interpolated_count
 
     def extract_with_result(
         self,
@@ -368,10 +371,10 @@ class ECGImageToSignal:
             valid_column_ratio = float(np.mean(col_has_content > 0.005))
 
             # Extract signal using continuity-constrained centroid tracking
-            signal_1d = self._extract_trace_centroid(strip)
+            signal_1d, gap_count = self._extract_trace_centroid(strip)
 
-            # Count interpolated (near-zero variance) columns
-            interpolated = int(np.sum(signal_1d < 1e-6))
+            # Use gap count from extraction (not value threshold)
+            interpolated = gap_count
             total_interpolated += interpolated
             total_columns += len(signal_1d)
             interpolated_ratio = interpolated / max(len(signal_1d), 1)
@@ -388,12 +391,13 @@ class ECGImageToSignal:
                 jump_rate = 0.0
 
             # Clipped ratio: fraction at min or max
-            clipped_ratio = 0.0  # For mean-based extraction, clipping is rare
+            clipped_ratio = 0.0
 
-            # SNR estimate: signal std / noise floor
+            # SNR estimate: signal std / noise floor (from high-frequency content)
             if flatness > 0:
-                noise_floor = float(np.median(signal_1d[signal_1d < np.median(signal_1d)])) if np.any(signal_1d < np.median(signal_1d)) else 0.0
-                snr_estimate = flatness / max(noise_floor, 1e-8)
+                # Estimate noise as std of first derivative (high-freq component)
+                noise_estimate = float(np.std(np.diff(signal_1d))) / np.sqrt(2.0)
+                snr_estimate = flatness / max(noise_estimate, 1e-8)
             else:
                 snr_estimate = None
 
