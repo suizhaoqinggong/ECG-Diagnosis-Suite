@@ -338,24 +338,24 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
         # 获取模型服务
         service = get_model_service()
 
-        # 真实推理
-        print("🔮 Running CardioFormer inference...")
-        result = service.predict_from_image(image_array)
+        # --- Signal extraction with QC ---
+        extraction = service.image_converter.extract_with_result(image_array)
+        signal_np = extraction.signals
 
-        print(f"✅ Inference completed")
-        print(f"   Prediction: {result['prediction']}")
-        print(f"   Confidence: {result['confidence']:.2%}")
+        # --- Inter-lead collapse quality gate (P0) ---
+        from ml.signal_quality import analyze_signal_quality
 
-        # 提取信号质量元数据
+        quality_report = analyze_signal_quality(signal_np)
+
+        # Collect pipeline warnings from extraction QC
         from ml.pipeline_types import ExtractionResult
 
-        extraction_qc: ExtractionResult | None = result.get("extraction_qc")
+        extraction_qc: ExtractionResult | None = extraction
         quality_warning = None
         pipeline_warnings: list[str] = []
 
         if extraction_qc is not None:
             quality_warning = extraction_qc.overall_quality
-            # Build human-readable warnings from per-lead QC
             for qc in extraction_qc.per_lead_qc:
                 if qc.quality in ("fail", "poor"):
                     pipeline_warnings.append(
@@ -366,10 +366,58 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
                 pipeline_warnings.append(
                     f"信号插值比例较高 ({extraction_qc.interpolated_ratio:.1%})"
                 )
-            # Forward converter-level warnings and issues
             pipeline_warnings.extend(extraction_qc.warnings)
             for issue in extraction_qc.issues:
                 pipeline_warnings.append(issue.message)
+
+        # --- If collapsed, skip model inference ---
+        if quality_report.is_collapsed:
+            print(f"⚠️  Signal quality gate FAILED — skipping inference")
+            if quality_report.warning:
+                print(f"   {quality_report.warning}")
+
+            pipeline_warnings.insert(0, quality_report.warning or "信号质量不足")
+
+            # Build a minimal result without running the model
+            from app.services.diagnosis_report_service import DiagnosisEnhancedReport
+
+            report = DiagnosisEnhancedReport(
+                source="template",
+                summary="信号质量不足，无法进行可靠诊断",
+                clinical_interpretation=(
+                    "图像转换提取的导联信号高度相似或过于平坦，"
+                    "无法进行有效的心电图分析。"
+                    "请尝试上传更清晰的ECG图像。"
+                ),
+            )
+            response = DiagnosisResponse(
+                prediction="信号质量不足",
+                confidence=0.0,
+                severity=None,
+                icd_code=None,
+                description=None,
+                recommendations=None,
+                timestamp=datetime.now().isoformat(),
+                all_probabilities=None,
+                top3_predictions=None,
+                detected_labels=None,
+                secondary_findings=None,
+                quality_warning=quality_warning,
+                pipeline_warnings=pipeline_warnings,
+                report=report,
+            )
+            # Persist collapsed uploads to history (Codex review fix #1)
+            await _save_diagnosis_record(file.filename, response)
+            return response
+
+        # --- Normal inference path ---
+        print("🔮 Running CardioFormer inference...")
+        result = service.predict_from_signal(signal_np)
+        result["extraction_qc"] = extraction
+
+        print(f"✅ Inference completed")
+        print(f"   Prediction: {result['prediction']}")
+        print(f"   Confidence: {result['confidence']:.2%}")
 
         response = await _create_diagnosis_response(
             file_reference=file.filename,
