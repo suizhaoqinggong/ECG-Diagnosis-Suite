@@ -228,6 +228,227 @@ class ECGImageToSignal:
 
         return result
 
+    def _detect_layout_multi(
+        self, image: np.ndarray
+    ) -> tuple[list[tuple[int, int, int, int]], str, float, bool]:
+        """
+        Detect ECG layout template using FFT-based frequency analysis.
+
+        Tries multiple layout templates:
+        - 12x1: 12 horizontal strips
+        - 6x2: 2 columns x 6 rows
+        - 4x3+1: 3 rows of 4 leads + 1 rhythm strip at bottom
+        - 3x4: 4 columns x 3 rows
+
+        Uses FFT to detect the dominant periodicity in row and column projections,
+        which is characteristic of different grid layouts.
+
+        Args:
+            image: Input image [H, W, C] or [H, W]
+
+        Returns:
+            Tuple of (layout_regions, layout_method, layout_score, fallback_used)
+            - layout_regions: list of (y_start, y_end, x_start, x_end) for each lead
+            - layout_method: detected layout name
+            - layout_score: correlation score (0.0-1.0)
+            - fallback_used: True if no template matched well
+        """
+        # Convert to grayscale if needed
+        if image.ndim == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = image.copy()
+
+        h, w = gray.shape
+
+        # Binarize for projection analysis
+        mean_val = float(np.mean(gray))
+        _, binary = cv2.threshold(gray, int(mean_val * 0.7), 255, cv2.THRESH_BINARY_INV)
+
+        # Compute row and column projections (normalized)
+        row_proj = np.sum(binary > 0, axis=1).astype(np.float64) / w
+        col_proj = np.sum(binary > 0, axis=0).astype(np.float64) / h
+
+        # Use FFT to find dominant frequencies
+        row_fft = np.abs(np.fft.rfft(row_proj - np.mean(row_proj)))
+        col_fft = np.abs(np.fft.rfft(col_proj - np.mean(col_proj)))
+
+        # Find dominant frequencies (excluding DC component at index 0)
+        row_peaks = np.argsort(row_fft[1:])[-3:] + 1 if len(row_fft) > 1 else [0]
+        col_peaks = np.argsort(col_fft[1:])[-3:] + 1 if len(col_fft) > 1 else [0]
+
+        # Score each template based on how well its expected frequencies match
+        templates = [
+            ("12x1", self._compute_12x1_regions, 12, 0),  # 12 rows, no column structure
+            ("6x2", self._compute_6x2_regions, 6, 2),      # 6 rows, 2 columns
+            ("4x3+1", self._compute_4x3_plus1_regions, 4, 4),  # 4 rows, 4 columns
+            ("3x4", self._compute_3x4_regions, 3, 4),      # 3 rows, 4 columns
+        ]
+
+        best_score = -1.0
+        best_method = "naive_strips"
+        best_regions = self._compute_naive_regions(h, w)
+        fallback_used = True
+
+        for method_name, region_func, expected_rows, expected_cols in templates:
+            try:
+                # Score based on FFT peak matching
+                score = self._score_template_fft(
+                    row_fft, col_fft, expected_rows, expected_cols, h, w
+                )
+
+                if score > best_score:
+                    best_score = score
+                    best_method = method_name
+                    best_regions = region_func(h, w)
+                    fallback_used = False
+            except Exception:
+                continue
+
+        # If best score is too low, use fallback
+        if best_score < 0.5:
+            fallback_used = True
+            best_method = "naive_strips"
+            best_regions = self._compute_naive_regions(h, w)
+            best_score = max(0.0, best_score)  # Ensure non-negative
+
+        return best_regions, best_method, min(1.0, best_score), fallback_used
+
+    def _score_template_fft(
+        self,
+        row_fft: np.ndarray,
+        col_fft: np.ndarray,
+        expected_rows: int,
+        expected_cols: int,
+        h: int,
+        w: int,
+    ) -> float:
+        """
+        Score how well the FFT matches expected row/column periodicity.
+
+        Args:
+            row_fft: FFT of row projection
+            col_fft: FFT of column projection
+            expected_rows: Expected number of row divisions
+            expected_cols: Expected number of column divisions (0 for no column structure)
+            h: Image height
+            w: Image width
+
+        Returns:
+            Score between 0.0 and 1.0
+        """
+        # Calculate expected frequency bin for row periodicity
+        # Frequency bin = expected_rows for a signal of length h
+        row_freq_bin = expected_rows
+
+        # Row score: how much energy is at the expected frequency
+        if row_freq_bin < len(row_fft):
+            # Normalize by total energy (excluding DC)
+            total_row_energy = np.sum(row_fft[1:]) + 1e-10
+            row_peak_energy = row_fft[row_freq_bin]
+            # Also check nearby bins for robustness
+            nearby_energy = 0
+            for offset in [-1, 0, 1]:
+                idx = row_freq_bin + offset
+                if 1 <= idx < len(row_fft):
+                    nearby_energy = max(nearby_energy, row_fft[idx])
+            row_score = nearby_energy / total_row_energy
+        else:
+            row_score = 0.0
+
+        # Column score
+        if expected_cols > 0:
+            col_freq_bin = expected_cols
+            if col_freq_bin < len(col_fft):
+                total_col_energy = np.sum(col_fft[1:]) + 1e-10
+                col_peak_energy = col_fft[col_freq_bin]
+                nearby_energy = 0
+                for offset in [-1, 0, 1]:
+                    idx = col_freq_bin + offset
+                    if 1 <= idx < len(col_fft):
+                        nearby_energy = max(nearby_energy, col_fft[idx])
+                col_score = nearby_energy / total_col_energy
+            else:
+                col_score = 0.0
+        else:
+            # For layouts without column structure, check if column FFT is flat
+            col_score = 1.0 - (np.std(col_fft[1:]) / (np.mean(col_fft[1:]) + 1e-10))
+            col_score = max(0.0, min(1.0, col_score))
+
+        # Weight row score more heavily
+        return 0.6 * row_score + 0.4 * col_score
+
+    def _compute_naive_regions(self, h: int, w: int) -> list[tuple[int, int, int, int]]:
+        """Compute naive 12x1 horizontal strip regions."""
+        strip_h = h // 12
+        regions = []
+        for i in range(12):
+            y_start = i * strip_h
+            y_end = (i + 1) * strip_h if i < 11 else h
+            regions.append((y_start, y_end, 0, w))
+        return regions
+
+    def _compute_12x1_regions(self, h: int, w: int) -> list[tuple[int, int, int, int]]:
+        """Compute 12x1 horizontal strip regions."""
+        strip_h = h // 12
+        regions = []
+        for i in range(12):
+            y_start = i * strip_h
+            y_end = (i + 1) * strip_h if i < 11 else h
+            regions.append((y_start, y_end, 0, w))
+        return regions
+
+    def _compute_6x2_regions(self, h: int, w: int) -> list[tuple[int, int, int, int]]:
+        """Compute 6x2 grid regions (6 rows, 2 columns = 12 leads)."""
+        cell_h = h // 6
+        cell_w = w // 2
+        regions = []
+        # Lead order: I, II, III, aVR, aVL, aVF, V1, V2, V3, V4, V5, V6
+        for i in range(12):
+            row = i // 2
+            col = i % 2
+            y_start = row * cell_h
+            y_end = (row + 1) * cell_h if row < 5 else h
+            x_start = col * cell_w
+            x_end = (col + 1) * cell_w if col < 1 else w
+            regions.append((y_start, y_end, x_start, x_end))
+        return regions
+
+    def _compute_4x3_plus1_regions(self, h: int, w: int) -> list[tuple[int, int, int, int]]:
+        """Compute 4x3+1 regions (3 rows of 4 leads + 1 rhythm strip)."""
+        row_h = h // 4  # 3 lead rows + 1 rhythm row
+        col_w = w // 4
+        regions = []
+
+        # First 3 rows: 4 leads each = 12 leads
+        for i in range(12):
+            row = i // 4
+            col = i % 4
+            y_start = row * row_h
+            y_end = (row + 1) * row_h
+            x_start = col * col_w
+            x_end = (col + 1) * col_w if col < 3 else w
+            regions.append((y_start, y_end, x_start, x_end))
+
+        return regions
+
+    def _compute_3x4_regions(self, h: int, w: int) -> list[tuple[int, int, int, int]]:
+        """Compute 3x4 grid regions (3 rows, 4 columns = 12 leads)."""
+        cell_h = h // 3
+        cell_w = w // 4
+        regions = []
+
+        for i in range(12):
+            row = i // 4
+            col = i % 4
+            y_start = row * cell_h
+            y_end = (row + 1) * cell_h if row < 2 else h
+            x_start = col * cell_w
+            x_end = (col + 1) * cell_w if col < 3 else w
+            regions.append((y_start, y_end, x_start, x_end))
+
+        return regions
+
     def _extract_trace_centroid(self, strip: np.ndarray) -> np.ndarray:
         """
         Extract a 1D trace signal from a binary strip using continuity-constrained
@@ -386,20 +607,20 @@ class ECGImageToSignal:
         # Threshold to get ECG trace
         _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
 
-        height, width = binary.shape
-        strip_height = height // self.num_leads
+        # Detect layout using multi-template detection
+        layout_regions, layout_method, layout_score, fallback_used = self._detect_layout_multi(image)
 
         signals = []
         raw_signals = []
         per_lead_qc: list[LeadQC] = []
         total_interpolated = 0
         total_columns = 0
-        fallback_used = False
 
         for i in range(self.num_leads):
-            y_start = i * strip_height
-            y_end = (i + 1) * strip_height
-            strip = binary[y_start:y_end, :]
+            y_start, y_end, x_start, x_end = layout_regions[i]
+            strip = binary[y_start:y_end, x_start:x_end]
+            strip_h = y_end - y_start
+            strip_w = x_end - x_start
 
             # Compute per-strip QC before extraction
             col_has_content = np.mean(strip > 0, axis=0)
@@ -421,7 +642,7 @@ class ECGImageToSignal:
             # Jump rate: fraction of columns where signal jumps > 20% of strip height
             if len(signal_1d) > 1:
                 diffs = np.abs(np.diff(signal_1d))
-                jump_threshold = strip_height * 0.20
+                jump_threshold = strip_h * 0.20
                 jump_rate = float(np.mean(diffs > jump_threshold))
             else:
                 jump_rate = 0.0
@@ -493,8 +714,8 @@ class ECGImageToSignal:
 
         return ExtractionResult(
             signals=signals_array,
-            layout_method="horizontal_strips",
-            layout_score=1.0,
+            layout_method=layout_method,
+            layout_score=layout_score,
             fallback_used=fallback_used,
             interpolated_columns=total_interpolated,
             interpolated_ratio=interpolated_ratio,
