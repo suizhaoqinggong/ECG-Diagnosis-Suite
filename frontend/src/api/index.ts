@@ -28,6 +28,8 @@ export interface DiagnosisResultData {
   disclaimer: string
   all_probabilities?: Record<string, number> | null
   top3_predictions?: PredictionProbability[] | null
+  quality_warning?: 'pass' | 'warn' | 'fail' | null
+  pipeline_warnings?: string[]
   report: EnhancedDiagnosisReport
 }
 

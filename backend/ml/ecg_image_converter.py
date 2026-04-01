@@ -142,44 +142,12 @@ class ECGImageToSignal:
         """
         Conservative grid suppression for grayscale-only images.
 
-        Uses morphological operations to remove thin lines while preserving
-        thicker traces. Very conservative to avoid deleting real traces.
+        For grayscale images there is no color information to distinguish
+        grid lines from traces, so we return the image unchanged to avoid
+        removing real ECG content.  Grid suppression is only effective
+        when colored grid lines (red/pink) can be detected via HSV analysis.
         """
-        # Apply a small morphological opening to remove thin grid lines
-        # but preserve thicker ECG traces.
-        # Kernel size must be small to be conservative.
-        kernel_h = np.ones((1, 3), dtype=np.uint8)  # Horizontal kernel
-        kernel_v = np.ones((3, 1), dtype=np.uint8)  # Vertical kernel
-
-        # Opening removes thin bright structures on dark background.
-        # Since grid lines in grayscale ECG are usually thin and
-        # traces are thicker, this should help.
-        opened = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel_h)
-        opened = cv2.morphologyEx(opened, cv2.MORPH_OPEN, kernel_v)
-
-        # Blend: use opened version only where it helps (remove thin lines)
-        # If opening removed too much, stick with original
-        diff = cv2.absdiff(gray, opened)
-        mean_diff = float(np.mean(diff))
-
-        # If the morphological operation barely changed anything, return original
-        if mean_diff < 2.0:
-            return gray
-
-        # Opening makes thin dark grid lines brighter (removes them).
-        # Take the brighter of the two so that suppressed grid lines stay
-        # bright, while actual traces (which survive opening) are preserved.
-        result = np.maximum(gray, opened)
-
-        # Safety: if suppression removed too much content, fall back.
-        # Measure what fraction of dark pixels were lost (gray dark → result bright).
-        was_dark = gray < 80
-        now_bright = result >= 80
-        removed_fraction = float(np.sum(was_dark & now_bright)) / max(float(np.sum(was_dark)), 1.0)
-        if removed_fraction > 0.50:
-            return gray
-
-        return result
+        return gray
 
     def _suppress_periodic_lines(self, gray: np.ndarray) -> np.ndarray:
         """

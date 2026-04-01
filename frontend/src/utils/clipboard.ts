@@ -25,6 +25,18 @@ export function formatReportAsText(result: DiagnosisResultData): string {
   lines.push(`Generated: ${new Date(result.timestamp).toLocaleString()}`)
   lines.push(`Report Source: ${result.report.source === 'llm' ? 'LLM Enhanced' : 'Template'}`)
 
+  if (result.quality_warning) {
+    lines.push(`Quality Warning: ${result.quality_warning}`)
+  }
+
+  if (result.pipeline_warnings?.length) {
+    lines.push('')
+    lines.push('Pipeline Warnings:')
+    result.pipeline_warnings.forEach((warning, i) => {
+      lines.push(`${i + 1}. ${warning}`)
+    })
+  }
+
   if (result.report.summary) {
     lines.push('')
     lines.push('Summary:')

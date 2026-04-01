@@ -1,4 +1,4 @@
-import type { ChangeEvent, KeyboardEvent } from 'react'
+import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from 'react'
 import type { AttachedFileSummary } from '../types/chat'
 import { formatFileSize } from '../utils'
 
@@ -53,6 +53,23 @@ export default function ChatComposer({
 }: ChatComposerProps) {
   const hasContent = draft.trim().length > 0 || attachedFiles.length > 0
 
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = event.clipboardData?.items
+    if (!items) return
+
+    for (const item of items) {
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const blob = item.getAsFile()
+        if (!blob) continue
+        event.preventDefault()
+        const ext = item.type.split('/')[1] || 'png'
+        const file = new File([blob], `clipboard-${Date.now()}.${ext}`, { type: item.type })
+        onImageFilesSelected([file])
+        return
+      }
+    }
+  }
+
   const handleKeyboardSubmit = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault()
@@ -106,6 +123,7 @@ export default function ChatComposer({
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={handleKeyboardSubmit}
+            onPaste={handlePaste}
             disabled={isLoading}
             rows={4}
             placeholder="Describe the study, add a note for this ECG, or attach files to begin analysis."

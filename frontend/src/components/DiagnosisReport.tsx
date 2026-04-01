@@ -41,8 +41,23 @@ function ProbabilityBar({ prediction, index }: { prediction: { class: string; pr
   )
 }
 
+function getQualityBadgeLabel(quality: DiagnosisResultData['quality_warning']) {
+  if (quality === 'fail') return 'Low reliability'
+  if (quality === 'warn') return 'Needs review'
+  return 'Quality check'
+}
+
+function getQualityClasses(quality: DiagnosisResultData['quality_warning']) {
+  if (quality === 'fail') {
+    return 'border-red-200 bg-[rgba(180,55,35,0.08)] text-[#8f2f1f]'
+  }
+  return 'border-amber-200 bg-[rgba(176,118,22,0.10)] text-[#7a5714]'
+}
+
 export default function DiagnosisReport({ result }: DiagnosisReportProps) {
   const [copied, setCopied] = useState(false)
+  const qualityWarnings = result.pipeline_warnings ?? []
+  const showQualityBanner = result.quality_warning === 'warn' || result.quality_warning === 'fail' || qualityWarnings.length > 0
 
   const handleCopy = async () => {
     const text = formatReportAsText(result)
@@ -118,6 +133,34 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
           Print
         </button>
       </div>
+
+      {showQualityBanner ? (
+        <div className={`rounded-[22px] border px-5 py-5 ${getQualityClasses(result.quality_warning)}`} role="alert">
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em]">
+              {getQualityBadgeLabel(result.quality_warning)}
+            </p>
+            {result.quality_warning ? (
+              <span className="rounded-full border border-current/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em]">
+                {result.quality_warning}
+              </span>
+            ) : null}
+          </div>
+          {qualityWarnings.length > 0 ? (
+            <div className="mt-4 space-y-2">
+              {qualityWarnings.map((warning, index) => (
+                <p key={`${warning}-${index}`} className="text-sm leading-7">
+                  {warning}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm leading-7">
+              Signal extraction quality needs manual review before relying on this result.
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {/* Clinical Interpretation */}
       {result.report?.clinical_interpretation ? (
