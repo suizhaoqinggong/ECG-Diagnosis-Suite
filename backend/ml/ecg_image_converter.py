@@ -166,12 +166,17 @@ class ECGImageToSignal:
         if mean_diff < 2.0:
             return gray
 
-        # Otherwise, blend: take the darker of the two to preserve traces
-        result = np.minimum(gray, opened)
+        # Opening makes thin dark grid lines brighter (removes them).
+        # Take the brighter of the two so that suppressed grid lines stay
+        # bright, while actual traces (which survive opening) are preserved.
+        result = np.maximum(gray, opened)
 
-        # Safety check
-        dark_ratio = float(np.mean(result < 80))
-        if dark_ratio > 0.50:
+        # Safety: if suppression removed too much content, fall back.
+        # Measure what fraction of dark pixels were lost (gray dark → result bright).
+        was_dark = gray < 80
+        now_bright = result >= 80
+        removed_fraction = float(np.sum(was_dark & now_bright)) / max(float(np.sum(was_dark)), 1.0)
+        if removed_fraction > 0.50:
             return gray
 
         return result
