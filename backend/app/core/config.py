@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "data/uploads"
     ALLOWED_EXTENSIONS: List[str] = [".png", ".jpg", ".jpeg", ".dat", ".hea"]
 
+    # Image processing limits
+    IMAGE_MAX_PIXELS: int = 178_956_970  # ~178MP, Pillow default threshold
+    IMAGE_MAX_DIMENSION: int = 16000  # Max single dimension (width or height)
+    IMAGE_PROCESSING_MAX_DIMENSION: int = 4096  # Downsample threshold for large images
+
     # Model settings
     MODEL_CHECKPOINT_PATH: Optional[str] = None
     DEVICE: str = "cpu"

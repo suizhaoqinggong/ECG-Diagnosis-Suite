@@ -232,16 +232,17 @@ class CardioFormerService:
             return_probs: 是否返回所有类别的概率
 
         Returns:
-            预测结果字典
+            预测结果字典（含 extraction_qc 元数据）
         """
-        # 将图像转换为信号
-        signal_tensor = self.image_converter(image_array)
+        # 将图像转换为信号（附带 QC 元数据）
+        extraction = self.image_converter.extract_with_result(image_array)
+        signal_np = extraction.signals
 
         # 预测
-        return self.predict_from_signal(
-            signal_tensor.squeeze(0).cpu().numpy(),
-            return_probs=return_probs
-        )
+        result = self.predict_from_signal(signal_np, return_probs=return_probs)
+        result["extraction_qc"] = extraction
+
+        return result
 
     def test_with_dummy_signal(self) -> Dict:
         """

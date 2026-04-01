@@ -1,27 +1,31 @@
 """
 Diagnosis API endpoints
 """
-from pathlib import Path
+
 import shutil
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from PIL import Image
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.upload import sanitize_filename, save_upload, validate_extension
 from app.models.db_models import DiagnosisRecord
-from app.services.ecg_dat_loader import ECGDataLoader
 from app.services.diagnosis_report_service import (
-    DiagnosisEnhancedReport,
-    get_diagnosis_report_service,
-)
+    DiagnosisEnhancedReport, get_diagnosis_report_service)
+from app.services.ecg_dat_loader import ECGDataLoader
 from ml.cardioformer_service import CardioFormerService
+from ml.image_decoder import (
+    ImageDecodeError,
+    ImageProcessingError,
+    safe_decode_image,
+)
 
 router = APIRouter()
 
@@ -38,6 +42,8 @@ class DiagnosisResponse(BaseModel):
     top3_predictions: Optional[List[Dict[str, Any]]] = None
     detected_labels: Optional[List[str]] = None  # All labels above threshold
     secondary_findings: Optional[List[str]] = None  # Non-primary detected labels
+    quality_warning: Optional[str] = None  # "pass", "warn", or "fail"
+    pipeline_warnings: List[str] = Field(default_factory=list)  # Human-readable quality messages
     report: DiagnosisEnhancedReport
     disclaimer: str = "本结果仅供参考，不作为临床诊断依据"
 
@@ -136,7 +142,9 @@ def _timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-async def _save_diagnosis_record(file_reference: str, result: DiagnosisResponse) -> None:
+async def _save_diagnosis_record(
+    file_reference: str, result: DiagnosisResponse
+) -> None:
     async with AsyncSessionLocal() as session:
         session.add(
             DiagnosisRecord(
@@ -207,7 +215,7 @@ async def diagnose_ecg(file: UploadFile = File(...)):
     validate_extension(safe_name)
 
     # 验证文件类型
-    if safe_name.lower().endswith('.dat'):
+    if safe_name.lower().endswith(".dat"):
         # 处理.dat文件
         return await _diagnose_dat_file(file, safe_name)
     elif file.content_type and file.content_type.startswith("image/"):
@@ -216,7 +224,7 @@ async def diagnose_ecg(file: UploadFile = File(...)):
     else:
         raise HTTPException(
             status_code=400,
-            detail="不支持的文件格式。支持的格式：图片(.png, .jpg, .jpeg) 或 ECG数据(.dat)"
+            detail="不支持的文件格式。支持的格式：图片(.png, .jpg, .jpeg) 或 ECG数据(.dat)",
         )
 
 
@@ -237,11 +245,7 @@ async def _diagnose_dat_file(file: UploadFile, safe_name: str) -> DiagnosisRespo
         print(f"📁 Processing .dat file: {file.filename}")
 
         # 加载.dat文件
-        loader = ECGDataLoader(
-            target_length=1000,
-            target_leads=12,
-            normalize=True
-        )
+        loader = ECGDataLoader(target_length=1000, target_leads=12, normalize=True)
 
         # 尝试加载信号数据
         # 注意：需要配套的.hea文件
@@ -251,14 +255,13 @@ async def _diagnose_dat_file(file: UploadFile, safe_name: str) -> DiagnosisRespo
             # 如果找不到.hea文件，给出明确提示
             raise HTTPException(
                 status_code=400,
-                detail=f"缺少配套文件：{str(e)}。.dat文件需要同名的.hea头文件。"
+                detail=f"缺少配套文件：{str(e)}。.dat文件需要同名的.hea头文件。",
             )
 
         # 验证信号格式
         if not loader.validate_signal(signal_data):
             raise HTTPException(
-                status_code=400,
-                detail="信号数据格式无效，请检查数据完整性"
+                status_code=400, detail="信号数据格式无效，请检查数据完整性"
             )
 
         print(f"✅ Signal loaded successfully")
@@ -289,6 +292,7 @@ async def _diagnose_dat_file(file: UploadFile, safe_name: str) -> DiagnosisRespo
     except Exception as e:
         print(f"❌ .dat diagnosis failed: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
     finally:
@@ -308,9 +312,25 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
     save_upload(file, file_path)
 
     try:
-        # 加载图像
-        image = Image.open(file_path).convert('RGB')
-        image_array = np.array(image)
+        # 使用安全图像解码器（防御压缩炸弹、损坏图像等）
+        try:
+            decoded = safe_decode_image(
+                str(file_path),
+                max_pixels=settings.IMAGE_MAX_PIXELS,
+                max_dimension=settings.IMAGE_MAX_DIMENSION,
+                processing_max_dimension=settings.IMAGE_PROCESSING_MAX_DIMENSION,
+            )
+            image_array = decoded.image_rgb
+        except ImageDecodeError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"图像文件无效或损坏: {str(e)}",
+            )
+        except ImageProcessingError as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"图像处理失败: {str(e)}",
+            )
 
         print(f"📸 Processing image: {file.filename}")
         print(f"   Image shape: {image_array.shape}")
@@ -326,15 +346,47 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
         print(f"   Prediction: {result['prediction']}")
         print(f"   Confidence: {result['confidence']:.2%}")
 
-        return await _create_diagnosis_response(
+        # 提取信号质量元数据
+        from ml.pipeline_types import ExtractionResult
+
+        extraction_qc: ExtractionResult | None = result.get("extraction_qc")
+        quality_warning = None
+        pipeline_warnings: list[str] = []
+
+        if extraction_qc is not None:
+            quality_warning = extraction_qc.overall_quality
+            # Build human-readable warnings from per-lead QC
+            for qc in extraction_qc.per_lead_qc:
+                if qc.quality in ("fail", "poor"):
+                    pipeline_warnings.append(
+                        f"导联 {qc.lead_index} 信号提取质量较差 "
+                        f"(覆盖率: {qc.coverage:.1%}, 质量: {qc.quality})"
+                    )
+            if extraction_qc.interpolated_ratio > 0.3:
+                pipeline_warnings.append(
+                    f"信号插值比例较高 ({extraction_qc.interpolated_ratio:.1%})"
+                )
+            # Forward converter-level warnings and issues
+            pipeline_warnings.extend(extraction_qc.warnings)
+            for issue in extraction_qc.issues:
+                pipeline_warnings.append(issue.message)
+
+        response = await _create_diagnosis_response(
             file_reference=file.filename,
             result=result,
             input_mode="image",
         )
+        response.quality_warning = quality_warning
+        response.pipeline_warnings = pipeline_warnings
+        return response
 
+    except HTTPException:
+        # 重新抛出 HTTP 异常（包括图像解码错误 400）
+        raise
     except Exception as e:
         print(f"❌ Image diagnosis failed: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
     finally:
@@ -354,10 +406,7 @@ async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
     """
     # 验证文件数量
     if len(files) != 2:
-        raise HTTPException(
-            status_code=400,
-            detail="请同时上传.dat和.hea两个文件"
-        )
+        raise HTTPException(status_code=400, detail="请同时上传.dat和.hea两个文件")
 
     # 识别.dat和.hea文件
     dat_file = None
@@ -366,25 +415,24 @@ async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
     for file in files:
         safe_name = sanitize_filename(file.filename)
         validate_extension(safe_name)
-        if safe_name.lower().endswith('.dat'):
+        if safe_name.lower().endswith(".dat"):
             dat_file = file
-        elif safe_name.lower().endswith('.hea'):
+        elif safe_name.lower().endswith(".hea"):
             hea_file = file
 
     if not dat_file or not hea_file:
         raise HTTPException(
-            status_code=400,
-            detail="必须包含一个.dat文件和一个.hea文件"
+            status_code=400, detail="必须包含一个.dat文件和一个.hea文件"
         )
 
     # 验证文件名匹配
-    dat_name = dat_file.filename.replace('.dat', '').replace('.DAT', '')
-    hea_name = hea_file.filename.replace('.hea', '').replace('.HEA', '')
+    dat_name = dat_file.filename.replace(".dat", "").replace(".DAT", "")
+    hea_name = hea_file.filename.replace(".hea", "").replace(".HEA", "")
 
     if dat_name != hea_name:
         raise HTTPException(
             status_code=400,
-            detail=f".dat和.hea文件名必须相同（不含扩展名）。.dat: {dat_name}, .hea: {hea_name}"
+            detail=f".dat和.hea文件名必须相同（不含扩展名）。.dat: {dat_name}, .hea: {hea_name}",
         )
 
     print(f"📁 Processing .dat + .hea files: {dat_file.filename} + {hea_file.filename}")
@@ -409,19 +457,14 @@ async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
         print(f"   .hea: {hea_path}")
 
         # 加载.dat文件
-        loader = ECGDataLoader(
-            target_length=1000,
-            target_leads=12,
-            normalize=True
-        )
+        loader = ECGDataLoader(target_length=1000, target_leads=12, normalize=True)
 
         signal_data, metadata = loader.load_dat_file(str(dat_path))
 
         # 验证信号格式
         if not loader.validate_signal(signal_data):
             raise HTTPException(
-                status_code=400,
-                detail="信号数据格式无效，请检查数据完整性"
+                status_code=400, detail="信号数据格式无效，请检查数据完整性"
             )
 
         print(f"✅ Signal loaded successfully")
@@ -452,6 +495,7 @@ async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
     except Exception as e:
         print(f"❌ .dat diagnosis failed: {str(e)}")
         import traceback
+
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
     finally:
