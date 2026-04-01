@@ -377,7 +377,6 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
                 print(f"   {quality_report.warning}")
 
             pipeline_warnings.insert(0, quality_report.warning or "信号质量不足")
-            quality_warning = "fail"
 
             # Build a minimal result without running the model
             from app.services.diagnosis_report_service import DiagnosisEnhancedReport
@@ -407,6 +406,8 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
                 pipeline_warnings=pipeline_warnings,
                 report=report,
             )
+            # Persist collapsed uploads to history (Codex review fix #1)
+            await _save_diagnosis_record(file.filename, response)
             return response
 
         # --- Normal inference path ---
