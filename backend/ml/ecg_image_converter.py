@@ -50,6 +50,99 @@ class ECGImageToSignal:
         result = self.extract_with_result(image, lead_positions)
         return result.signals
 
+    def _detect_skew(self, image: np.ndarray) -> tuple[float, float]:
+        """
+        Detect skew angle using row-projection variance.
+
+        For aligned content, the horizontal row projection has high variance
+        (concentrated bands). For rotated content, it's spread out and smoother.
+        Tests multiple angles and picks the one maximizing projection variance.
+        """
+        if image.ndim == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = image.copy()
+
+        h, w = gray.shape
+        mean_val = float(np.mean(gray))
+        _, binary = cv2.threshold(gray, int(min(mean_val * 0.7, 200)), 255, cv2.THRESH_BINARY_INV)
+
+        best_angle = 0.0
+        best_variance = 0.0
+        baseline_variance = 0.0
+
+        for test_angle in np.arange(-45.0, 45.5, 0.5):
+            center = (w // 2, h // 2)
+            rot_matrix = cv2.getRotationMatrix2D(center, test_angle, 1.0)
+            rotated = cv2.warpAffine(binary, rot_matrix, (w, h), borderValue=0)
+
+            row_proj = np.sum(rotated > 0, axis=1).astype(np.float64)
+            variance = float(np.var(row_proj))
+
+            if variance > best_variance:
+                best_variance = variance
+                best_angle = float(test_angle)
+
+            if test_angle == 0.0:
+                baseline_variance = variance
+
+        # Confidence: if best angle is near 0, the image is aligned (high confidence in that)
+        # If best angle is far from 0, confidence depends on improvement over baseline
+        if abs(best_angle) < 1.0:
+            # Image appears straight — that's a confident finding
+            confidence = min(1.0, baseline_variance / 100.0) if baseline_variance > 1e-10 else 0.0
+        elif baseline_variance > 1e-10:
+            confidence = min(1.0, (best_variance / baseline_variance - 1.0) / 2.0 + 0.5)
+        else:
+            confidence = 0.5
+
+        return best_angle, confidence
+
+    def _correct_skew(self, image: np.ndarray, angle: float) -> np.ndarray:
+        """
+        Rotate an image to correct skew.
+
+        Args:
+            image: Input image, either [H, W, 3] (RGB) or [H, W] (grayscale).
+            angle: Rotation angle in degrees (positive = clockwise).
+
+        Returns:
+            Rotated image with same dimensions as input.
+        """
+        h, w = image.shape[:2]
+        center = (w // 2, h // 2)
+
+        # Get rotation matrix
+        rot_matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
+
+        # Calculate new bounding box to avoid clipping
+        # cos = np.abs(rot_matrix[0, 0])
+        # sin = np.abs(rot_matrix[0, 1])
+        # new_w = int((h * sin) + (w * cos))
+        # new_h = int((h * cos) + (w * sin))
+
+        # Adjust rotation matrix to keep center
+        # rot_matrix[0, 2] += (new_w / 2) - center[0]
+        # rot_matrix[1, 2] += (new_h / 2) - center[1]
+
+        # Determine border value (white for ECG images)
+        if image.ndim == 3:
+            border_value = (255, 255, 255)
+        else:
+            border_value = 255
+
+        # Apply rotation with same output size
+        rotated = cv2.warpAffine(
+            image,
+            rot_matrix,
+            (w, h),
+            flags=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT,
+            borderValue=border_value
+        )
+
+        return rotated
+
     def _suppress_grid_lines(self, image_rgb: np.ndarray) -> np.ndarray:
         """
         Suppress grid lines from an ECG image, preserving traces.
@@ -601,6 +694,31 @@ class ECGImageToSignal:
         Returns:
             ExtractionResult with signals and QC metadata
         """
+        # Initialize skew-related variables
+        skew_angle: float | None = None
+        skew_corrected = False
+        warnings: list[str] = []
+        overall_quality: str = "pass"
+
+        # --- Skew detection and correction ---
+        # Detect skew early in the pipeline
+        detected_angle, confidence = self._detect_skew(image)
+
+        if confidence > 0.3:
+            # detected_angle is the correction angle (rotate-by-this to straighten).
+            # skew_angle is the actual skew (what the image was rotated by).
+            skew_angle = -detected_angle
+
+            # Check for excessive rotation (> 30 degrees)
+            if abs(skew_angle) > 30:
+                warnings.append(f"Excessive rotation detected ({skew_angle:.1f} degrees). Image may be improperly oriented.")
+                overall_quality = "warn"
+            # Check for moderate rotation (2-30 degrees) that should be corrected
+            elif abs(skew_angle) > 2:
+                # Correct the skew using the correction angle
+                image = self._correct_skew(image, detected_angle)
+                skew_corrected = True
+
         # Grid suppression step: suppress grid lines before binarization
         gray = self._suppress_grid_lines(image)
 
@@ -712,6 +830,20 @@ class ECGImageToSignal:
 
         interpolated_ratio = total_interpolated / max(total_columns, 1)
 
+        # Merge any skew-related warnings with the result warnings
+        result_warnings = warnings.copy()
+
+        # Determine final overall quality
+        # Start with per-lead QC assessment, then upgrade if skew warnings exist
+        if overall_quality == "fail":
+            final_overall_quality = "fail"
+        elif failed_leads > self.num_leads // 2:
+            final_overall_quality = "fail"
+        elif poor_leads > self.num_leads // 3 or warnings:
+            final_overall_quality = "warn"
+        else:
+            final_overall_quality = "pass"
+
         return ExtractionResult(
             signals=signals_array,
             layout_method=layout_method,
@@ -720,9 +852,11 @@ class ECGImageToSignal:
             interpolated_columns=total_interpolated,
             interpolated_ratio=interpolated_ratio,
             per_lead_qc=per_lead_qc,
-            warnings=[],
+            warnings=result_warnings,
             issues=[],
-            overall_quality=overall_quality,
+            overall_quality=final_overall_quality,
+            skew_angle=skew_angle,
+            skew_corrected=skew_corrected,
         )
 
     def __call__(self, image: np.ndarray) -> torch.Tensor:

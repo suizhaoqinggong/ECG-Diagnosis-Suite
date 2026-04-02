@@ -92,3 +92,5 @@ class ExtractionResult:
     warnings: list[str] = field(default_factory=list)
     issues: list[PipelineIssue] = field(default_factory=list)
     overall_quality: OverallQuality = "pass"
+    skew_angle: float | None = None
+    skew_corrected: bool = False
