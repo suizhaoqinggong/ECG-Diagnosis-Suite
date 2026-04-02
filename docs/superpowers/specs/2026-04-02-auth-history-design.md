@@ -133,8 +133,8 @@ Index: `ix_diagnosis_records_user` on `(user_id, created_at DESC)`
 | `/api/auth/refresh` | POST | Cookie | Reads refresh token from `rt` cookie. Issues new access token + rotates refresh cookie. Also returns user info (id, email, display_name) so frontend can hydrate auth state without an extra `/me` call. |
 | `/api/auth/logout` | POST | Cookie | Revokes refresh token, clears cookie. |
 | `/api/auth/me` | GET | Bearer | Returns current user profile. |
-| `/api/auth/change-password` | POST | Bearer | Body: `{ old_password, new_password }`. Revokes all refresh tokens for this user (forces re-login on all devices). Clears refresh cookie. |
-| `/api/auth/delete-account` | POST | Bearer | Hard-deletes the user row. CASCADE deletes chat_sessions, chat_messages, refresh_tokens. diagnosis_records.user_id set to NULL via SET NULL FK. |
+| `/api/auth/change-password` | POST | Bearer | Body: `{ old_password, new_password }`. Revokes all refresh tokens for this user. Other devices will need to re-login when their current access tokens expire (within 15 min). Clears refresh cookie. |
+| `/api/auth/delete-account` | POST | Bearer | Hard-deletes the user row. CASCADE deletes chat_sessions, chat_messages, refresh_tokens. diagnosis_records.user_id set to NULL via SET NULL FK. Clears `rt` cookie in response. |
 
 **Account enumeration prevention:** Login and register return the same generic error message ("Invalid credentials" or "Registration failed") whether the email exists or not.
 
@@ -160,7 +160,7 @@ All endpoints require Bearer token auth. All endpoints scope queries by `current
 | `/api/chat/sessions/{id}` | DELETE | Delete single session and all its messages (CASCADE). |
 | `/api/chat/sessions` | DELETE | Delete all sessions and their messages for the current user (for "Clear all history"). |
 | `/api/chat/sessions/{id}/messages` | GET | List messages for session. Cursor-based pagination: `?cursor={created_at_iso}_{id}&limit=50`. Returns messages ordered by `(created_at, id)`. |
-| `/api/chat/sessions/{id}/messages` | POST | Append messages atomically. Body: `{ messages: [...] }`. Accepts an array to ensure user message + assistant result are stored in one transaction. Server validates all message IDs are valid UUID v4. Updates parent session's `updated_at`. |
+| `/api/chat/sessions/{id}/messages` | POST | Append messages atomically. Body: `{ messages: [...] }`. Accepts an array to ensure user message + assistant result are stored in one transaction. Server validates all message IDs are valid UUID v4. Idempotent: if any message ID already exists in the session, the entire batch is treated as a success (no duplicate insert). Updates parent session's `updated_at`. |
 
 ### Auth Middleware
 
@@ -213,6 +213,7 @@ interface AuthState {
 
 Request interceptor:
 - If `store.getToken()` returns a token, attach `Authorization: Bearer <token>`.
+- For auth endpoints (`/api/auth/*`), set `withCredentials: true` so cookies are sent cross-origin.
 
 Response interceptor:
 - On 401: if the request was to an auth endpoint (`/api/auth/*`), do NOT retry. Clear auth state.
