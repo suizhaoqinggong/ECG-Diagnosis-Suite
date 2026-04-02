@@ -8,13 +8,15 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.core.auth_dependencies import get_current_user, get_optional_user
+from app.models.user import User
 from app.core.upload import sanitize_filename, save_upload, validate_extension
 from app.models.db_models import DiagnosisRecord
 from app.services.diagnosis_report_service import (
@@ -143,12 +145,13 @@ def _timestamp() -> str:
 
 
 async def _save_diagnosis_record(
-    file_reference: str, result: DiagnosisResponse
+    file_reference: str, result: DiagnosisResponse, user_id: int | None = None
 ) -> None:
     async with AsyncSessionLocal() as session:
         session.add(
             DiagnosisRecord(
                 image_path=file_reference,
+                user_id=user_id,
                 prediction=result.prediction,
                 confidence=result.confidence,
                 severity=result.severity,
@@ -166,6 +169,7 @@ async def _create_diagnosis_response(
     result: Dict[str, Any],
     input_mode: str,
     metadata: Optional[Dict[str, Any]] = None,
+    user_id: int | None = None,
 ) -> DiagnosisResponse:
     prediction = result["prediction"]
     confidence = result["confidence"]
@@ -198,29 +202,35 @@ async def _create_diagnosis_response(
         secondary_findings=result.get("secondary_findings"),
         report=report,
     )
-    await _save_diagnosis_record(file_reference, response)
+    await _save_diagnosis_record(file_reference, response, user_id=user_id)
     return response
 
 
 @router.post("/diagnose", response_model=DiagnosisResponse)
-async def diagnose_ecg(file: UploadFile = File(...)):
+async def diagnose_ecg(
+    file: UploadFile = File(...),
+    current_user: User | None = Depends(get_optional_user),
+):
     """
     上传ECG数据并获取诊断结果
 
     支持的格式：
     - 图片格式: .png, .jpg, .jpeg
-    - ECG数据格式: .dat (PTB-XL格式，需要配套.hea文件)
+    - ECG数据双文件格式请使用 /api/diagnose-dat
     """
+    user_id = current_user.id if current_user else None
     safe_name = sanitize_filename(file.filename)
     validate_extension(safe_name)
 
     # 验证文件类型
     if safe_name.lower().endswith(".dat"):
-        # 处理.dat文件
-        return await _diagnose_dat_file(file, safe_name)
+        raise HTTPException(
+            status_code=400,
+            detail="单个 .dat 文件无法独立诊断，请使用 /api/diagnose-dat 同时上传同名的 .dat 和 .hea 文件。",
+        )
     elif file.content_type and file.content_type.startswith("image/"):
         # 处理图片文件
-        return await _diagnose_image_file(file, safe_name)
+        return await _diagnose_image_file(file, safe_name, user_id=user_id)
     else:
         raise HTTPException(
             status_code=400,
@@ -228,7 +238,7 @@ async def diagnose_ecg(file: UploadFile = File(...)):
         )
 
 
-async def _diagnose_dat_file(file: UploadFile, safe_name: str) -> DiagnosisResponse:
+async def _diagnose_dat_file(file: UploadFile, safe_name: str, user_id: int | None = None) -> DiagnosisResponse:
     """
     处理.dat文件上传和诊断
     """
@@ -284,6 +294,7 @@ async def _diagnose_dat_file(file: UploadFile, safe_name: str) -> DiagnosisRespo
             result=result,
             input_mode="signal",
             metadata=metadata,
+            user_id=user_id,
         )
 
     except HTTPException:
@@ -300,7 +311,7 @@ async def _diagnose_dat_file(file: UploadFile, safe_name: str) -> DiagnosisRespo
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisResponse:
+async def _diagnose_image_file(file: UploadFile, safe_name: str, user_id: int | None = None) -> DiagnosisResponse:
     """
     处理图片文件上传和诊断（原有逻辑）
     """
@@ -407,7 +418,7 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
                 report=report,
             )
             # Persist collapsed uploads to history (Codex review fix #1)
-            await _save_diagnosis_record(file.filename, response)
+            await _save_diagnosis_record(file.filename, response, user_id=user_id)
             return response
 
         # --- Normal inference path ---
@@ -423,6 +434,7 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
             file_reference=file.filename,
             result=result,
             input_mode="image",
+            user_id=user_id,
         )
         response.quality_warning = quality_warning
         response.pipeline_warnings = pipeline_warnings
@@ -442,7 +454,10 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str) -> DiagnosisRes
 
 
 @router.post("/diagnose-dat", response_model=DiagnosisResponse)
-async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
+async def diagnose_ecg_dat_files(
+    files: List[UploadFile] = File(...),
+    current_user: User | None = Depends(get_optional_user),
+):
     """
     上传.dat和.hea文件进行诊断
 
@@ -452,6 +467,7 @@ async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
 
     两个文件必须文件名相同（只有扩展名不同）
     """
+    user_id = current_user.id if current_user else None
     # 验证文件数量
     if len(files) != 2:
         raise HTTPException(status_code=400, detail="请同时上传.dat和.hea两个文件")
@@ -535,6 +551,7 @@ async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
             result=result,
             input_mode="signal",
             metadata=metadata,
+            user_id=user_id,
         )
 
     except HTTPException:
@@ -553,10 +570,13 @@ async def diagnose_ecg_dat_files(files: List[UploadFile] = File(...)):
             print(f"🧹 Cleaned up temp directory: {temp_dir}")
 
 
-@router.get("/history")
-async def get_diagnosis_history(limit: int = 20):
+@router.get("/history", deprecated=True)
+async def get_diagnosis_history(
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+):
     """
-    获取诊断历史记录
+    获取诊断历史记录（已弃用，请使用 chat API）
     """
     if limit < 1 or limit > 100:
         raise HTTPException(status_code=400, detail="limit 必须在 1 到 100 之间")
@@ -564,6 +584,7 @@ async def get_diagnosis_history(limit: int = 20):
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(DiagnosisRecord)
+            .where(DiagnosisRecord.user_id == current_user.id)
             .order_by(DiagnosisRecord.created_at.desc())
             .limit(limit)
         )

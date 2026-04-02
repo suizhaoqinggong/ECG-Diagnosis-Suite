@@ -2,8 +2,9 @@
 Application configuration
 """
 from pathlib import Path
-from pydantic_settings import BaseSettings
 from typing import List, Optional
+
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -12,10 +13,16 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-change-this"
+    API_DOCS_ENABLED: bool = True
 
     # Server settings
     HOST: str = "0.0.0.0"
     PORT: int = 8000
+    ALLOWED_HOSTS: List[str] = [
+        "localhost",
+        "127.0.0.1",
+        "testserver",
+    ]
 
     # Database settings
     DATABASE_URL: str = "sqlite+aiosqlite:///./ecg_db.sqlite"
@@ -52,6 +59,7 @@ class Settings(BaseSettings):
     # CORS settings
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",
+        "http://localhost:5174",
         "http://localhost:3000",
     ]
 

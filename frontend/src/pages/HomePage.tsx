@@ -1,24 +1,33 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import ChatComposer from '../components/ChatComposer'
 import ConversationMessage from '../components/ConversationMessage'
 import ConversationSidebar from '../components/ConversationSidebar'
 import EmptyStateGuide from '../components/EmptyStateGuide'
 import MobileHeader from '../components/MobileHeader'
 import { useWorkspaceController } from '../controllers/useWorkspaceController'
+import { useAuth } from '../auth/AuthProvider'
+import { AuthModal } from '../auth/AuthModal'
+import { UserMenu } from '../auth/UserMenu'
 
 export default function HomePage() {
-  const { state, dispatch, activeSession, isSubmitting, submit, retry, cancelSubmission } = useWorkspaceController()
+  const {
+    state,
+    dispatch,
+    activeSession,
+    isSubmitting,
+    submit,
+    retry,
+    cancelSubmission,
+    createSession,
+    switchSession,
+    renameSession,
+    deleteSession,
+    clearAllSessions,
+    togglePersistence,
+  } = useWorkspaceController()
+  const auth = useAuth()
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
-
-  const handleRenameSession = useCallback(
-    (id: string, title: string) => dispatch({ type: 'RENAME_SESSION', id, title }),
-    [dispatch],
-  )
-
-  const handleDeleteSession = useCallback(
-    (id: string) => dispatch({ type: 'DELETE_SESSION', id }),
-    [dispatch],
-  )
 
   const handleRenamingChange = useCallback(
     (sessionId: string | null) => dispatch({ type: 'SET_RENAMING', sessionId }),
@@ -64,15 +73,15 @@ export default function HomePage() {
       <ConversationSidebar
         sessions={state.persisted.sessions}
         activeSessionId={activeSession.id}
-        onSelectSession={(id) => dispatch({ type: 'SWITCH_SESSION', id })}
-        onCreateSession={() => dispatch({ type: 'CREATE_SESSION' })}
-        onRenameSession={handleRenameSession}
-        onDeleteSession={handleDeleteSession}
+        onSelectSession={switchSession}
+        onCreateSession={() => { void createSession() }}
+        onRenameSession={(id, title) => { void renameSession(id, title) }}
+        onDeleteSession={(id) => { void deleteSession(id) }}
         renamingSessionId={state.ui.renamingSessionId}
         onRenamingChange={handleRenamingChange}
         persistenceEnabled={state.persisted.persistenceEnabled}
-        onTogglePersistence={() => dispatch({ type: 'TOGGLE_PERSISTENCE' })}
-        onClearAllSessions={() => dispatch({ type: 'CLEAR_ALL_SESSIONS' })}
+        onTogglePersistence={togglePersistence}
+        onClearAllSessions={() => { void clearAllSessions() }}
         isOpen={state.ui.isSidebarOpen}
         onClose={handleCloseSidebar}
       />
@@ -102,21 +111,31 @@ export default function HomePage() {
 
         <header className="border-b border-[var(--border)] px-4 py-6 md:px-8">
           <div className="mx-auto max-w-4xl">
-            <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-              Writing-first interface
-            </p>
-            <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="reading-copy text-3xl tracking-tight text-[var(--ink)] md:text-[2.8rem]">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
+                  Writing-first interface
+                </p>
+                <h2 className="reading-copy mt-2 text-3xl tracking-tight text-[var(--ink)] md:text-[2.8rem]">
                   {activeSession.title}
                 </h2>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--ink-soft)]">
                   A document-style conversation for ECG interpretation, designed to read like notes rather than chat bubbles.
                 </p>
               </div>
-              <p className="max-w-sm text-sm leading-7 text-[var(--ink-muted)] md:text-right">
-                Keep image uploads, signal pair reviews, and follow-up notes in one calm workspace.
-              </p>
+              <div className="flex items-center gap-3">
+                {auth.user ? (
+                  <UserMenu />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowAuthModal(true)}
+                    className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink)]"
+                  >
+                    登录 / 注册
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -152,6 +171,11 @@ export default function HomePage() {
           onSubmit={submit}
         />
       </main>
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
     </div>
   )
 }

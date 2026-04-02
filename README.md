@@ -154,6 +154,23 @@ Services:
 - `db`: MySQL 8.4 on port `3306`
 - `redis`: Redis 7 on port `6379`
 
+## Production Deployment
+
+The repository now includes a production stack for direct server deployment:
+
+```bash
+cp .env.production.example .env.production
+bash scripts/deploy-production.sh
+```
+
+Production compose file:
+
+- [docker-compose.prod.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.prod.yml)
+
+Production deployment guide:
+
+- [docs/production-deployment.md](/Users/azure/ECG-Diagnosis-Suite/docs/production-deployment.md)
+
 Container database credentials in [docker-compose.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.yml):
 
 - database: `ecg_db`

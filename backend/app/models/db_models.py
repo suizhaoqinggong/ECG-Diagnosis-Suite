@@ -1,7 +1,7 @@
 """
 Database Models
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Text, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 
@@ -11,11 +11,17 @@ Base = declarative_base()
 class DiagnosisRecord(Base):
     """诊断记录表"""
     __tablename__ = "diagnosis_records"
+    __table_args__ = (
+        Index("ix_diagnosis_records_user", "user_id", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
 
     # 文件信息
     image_path = Column(String(255), nullable=False)
+
+    # 用户关联（匿名用户为 null）
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # 诊断结果
     prediction = Column(String(100), nullable=False)

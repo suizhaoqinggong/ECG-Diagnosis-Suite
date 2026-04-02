@@ -50,6 +50,19 @@ class ECGImageToSignal:
         result = self.extract_with_result(image, lead_positions)
         return result.signals
 
+    def _format_layout_method(self, raw_method: str) -> str:
+        if raw_method == "12x1":
+            return "horizontal_strips"
+        if raw_method == "6x2":
+            return "6x2_grid"
+        if raw_method == "4x3+1":
+            return "3x4+1_rhythm"
+        if raw_method == "3x4":
+            return "3x4_grid"
+        if raw_method == "naive_strips":
+            return "projection"
+        return raw_method
+
     def _detect_skew(self, image: np.ndarray) -> tuple[float, float]:
         """
         Detect skew angle using row-projection variance.
@@ -325,16 +338,7 @@ class ECGImageToSignal:
         self, image: np.ndarray
     ) -> tuple[list[tuple[int, int, int, int]], str, float, bool]:
         """
-        Detect ECG layout template using FFT-based frequency analysis.
-
-        Tries multiple layout templates:
-        - 12x1: 12 horizontal strips
-        - 6x2: 2 columns x 6 rows
-        - 4x3+1: 3 rows of 4 leads + 1 rhythm strip at bottom
-        - 3x4: 4 columns x 3 rows
-
-        Uses FFT to detect the dominant periodicity in row and column projections,
-        which is characteristic of different grid layouts.
+        Detect ECG layout template using projection-band analysis.
 
         Args:
             image: Input image [H, W, C] or [H, W]
@@ -354,58 +358,89 @@ class ECGImageToSignal:
 
         h, w = gray.shape
 
-        # Binarize for projection analysis
-        mean_val = float(np.mean(gray))
-        _, binary = cv2.threshold(gray, int(mean_val * 0.7), 255, cv2.THRESH_BINARY_INV)
+        _, binary = cv2.threshold(
+            gray,
+            0,
+            255,
+            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
+        )
 
-        # Compute row and column projections (normalized)
-        row_proj = np.sum(binary > 0, axis=1).astype(np.float64) / w
-        col_proj = np.sum(binary > 0, axis=0).astype(np.float64) / h
+        row_proj = np.mean(binary > 0, axis=1).astype(np.float64)
+        row_proj = cv2.GaussianBlur(row_proj.reshape(-1, 1), (1, 31), 0).ravel()
+        row_threshold = max(
+            float(np.mean(row_proj) + np.std(row_proj) * 0.5),
+            float(np.max(row_proj) * 0.35),
+        )
+        row_segments = self._find_projection_segments(
+            row_proj,
+            threshold=row_threshold,
+            min_size=max(4, h // 120),
+        )
 
-        # Use FFT to find dominant frequencies
-        row_fft = np.abs(np.fft.rfft(row_proj - np.mean(row_proj)))
-        col_fft = np.abs(np.fft.rfft(col_proj - np.mean(col_proj)))
+        row_count = len(row_segments)
+        per_row_col_counts: list[int] = []
+        per_row_span_fractions: list[float] = []
 
-        # Find dominant frequencies (excluding DC component at index 0)
-        row_peaks = np.argsort(row_fft[1:])[-3:] + 1 if len(row_fft) > 1 else [0]
-        col_peaks = np.argsort(col_fft[1:])[-3:] + 1 if len(col_fft) > 1 else [0]
+        for start, end in row_segments:
+            row_binary = binary[start:end, :]
+            col_proj = np.mean(row_binary > 0, axis=0).astype(np.float64)
+            col_segments = self._find_projection_segments(
+                col_proj,
+                threshold=0.01,
+                min_size=max(8, w // 40),
+            )
+            per_row_col_counts.append(len(col_segments))
+            per_row_span_fractions.append(
+                max(((segment_end - segment_start) / max(w, 1) for segment_start, segment_end in col_segments), default=0.0)
+            )
 
-        # Score each template based on how well its expected frequencies match
-        templates = [
-            ("12x1", self._compute_12x1_regions, 12, 0),  # 12 rows, no column structure
-            ("6x2", self._compute_6x2_regions, 6, 2),      # 6 rows, 2 columns
-            ("4x3+1", self._compute_4x3_plus1_regions, 4, 4),  # 4 rows, 4 columns
-            ("3x4", self._compute_3x4_regions, 3, 4),      # 3 rows, 4 columns
-        ]
+        if row_count >= 10 and max(per_row_col_counts or [0]) <= 1:
+            score = min(1.0, row_count / 12.0)
+            return self._compute_12x1_regions(h, w), "12x1", score, False
 
-        best_score = -1.0
-        best_method = "naive_strips"
-        best_regions = self._compute_naive_regions(h, w)
-        fallback_used = True
+        if (
+            row_count == 4
+            and len(per_row_col_counts) >= 4
+            and min(per_row_col_counts[:3]) >= 4
+            and per_row_col_counts[3] <= 2
+            and per_row_span_fractions[3] >= 0.75
+        ):
+            return self._compute_4x3_plus1_regions(h, w), "4x3+1", 0.95, False
 
-        for method_name, region_func, expected_rows, expected_cols in templates:
-            try:
-                # Score based on FFT peak matching
-                score = self._score_template_fft(
-                    row_fft, col_fft, expected_rows, expected_cols, h, w
-                )
+        if row_count in (3, 4) and max(per_row_col_counts or [0]) >= 4:
+            score = 0.9 if row_count == 3 else 0.75
+            return self._compute_3x4_regions(h, w), "3x4", score, row_count != 3
 
-                if score > best_score:
-                    best_score = score
-                    best_method = method_name
-                    best_regions = region_func(h, w)
-                    fallback_used = False
-            except Exception:
-                continue
+        if row_count in (5, 6, 7) and max(per_row_col_counts or [0]) >= 2:
+            score = 0.9 if row_count == 6 else 0.7
+            return self._compute_6x2_regions(h, w), "6x2", score, row_count != 6
 
-        # If best score is too low, use fallback
-        if best_score < 0.5:
-            fallback_used = True
-            best_method = "naive_strips"
-            best_regions = self._compute_naive_regions(h, w)
-            best_score = max(0.0, best_score)  # Ensure non-negative
+        fallback_score = min(0.6, max(0.0, row_count / 12.0))
+        return self._compute_naive_regions(h, w), "naive_strips", fallback_score, True
 
-        return best_regions, best_method, min(1.0, best_score), fallback_used
+    def _find_projection_segments(
+        self,
+        projection: np.ndarray,
+        *,
+        threshold: float,
+        min_size: int,
+    ) -> list[tuple[int, int]]:
+        segments: list[tuple[int, int]] = []
+        active = projection > threshold
+        start: int | None = None
+
+        for index, is_active in enumerate(active):
+            if is_active and start is None:
+                start = index
+            elif not is_active and start is not None:
+                if index - start >= min_size:
+                    segments.append((start, index))
+                start = None
+
+        if start is not None and len(active) - start >= min_size:
+            segments.append((start, len(active)))
+
+        return segments
 
     def _score_template_fft(
         self,
@@ -723,10 +758,16 @@ class ECGImageToSignal:
         gray = self._suppress_grid_lines(image)
 
         # Threshold to get ECG trace
-        _, binary = cv2.threshold(gray, 127, 255, cv2.THRESH_BINARY_INV)
+        _, binary = cv2.threshold(
+            gray,
+            0,
+            255,
+            cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU,
+        )
 
         # Detect layout using multi-template detection
-        layout_regions, layout_method, layout_score, fallback_used = self._detect_layout_multi(image)
+        layout_regions, layout_method, layout_score, fallback_used = self._detect_layout_multi(gray)
+        display_layout_method = self._format_layout_method(layout_method)
 
         signals = []
         raw_signals = []
@@ -846,7 +887,7 @@ class ECGImageToSignal:
 
         return ExtractionResult(
             signals=signals_array,
-            layout_method=layout_method,
+            layout_method=display_layout_method,
             layout_score=layout_score,
             fallback_used=fallback_used,
             interpolated_columns=total_interpolated,

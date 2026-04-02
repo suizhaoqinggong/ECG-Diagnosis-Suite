@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import type { ChatSession } from '../types/chat'
+import { useAuth } from '../auth/AuthProvider'
 import { formatSidebarTimestamp } from '../utils'
 import SessionMenu from './SessionMenu'
 
@@ -34,6 +35,7 @@ export default function ConversationSidebar({
   isOpen,
   onClose,
 }: ConversationSidebarProps) {
+  const { user } = useAuth()
   return (
     <>
       {/* Mobile overlay */}
@@ -130,28 +132,39 @@ export default function ConversationSidebar({
 
           {/* Privacy toggle & clear history */}
           <div className="border-t border-[var(--border)] px-5 py-5 lg:px-6">
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={persistenceEnabled}
-                onChange={onTogglePersistence}
-                className="h-4 w-4 rounded border-[var(--border)]"
-              />
-              <span className="text-sm text-[var(--ink-soft)]">
-                Save history on this device
-              </span>
-            </label>
+            {!user && (
+              <label className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={persistenceEnabled}
+                  onChange={onTogglePersistence}
+                  className="h-4 w-4 rounded border-[var(--border)]"
+                />
+                <span className="text-sm text-[var(--ink-soft)]">
+                  Save history on this device
+                </span>
+              </label>
+            )}
 
-            {!persistenceEnabled && (
+            {!user && !persistenceEnabled && (
               <p className="mt-2 text-xs text-[var(--ink-muted)]">
                 History will not be saved. Refreshing the page will clear sessions.
+              </p>
+            )}
+
+            {user && (
+              <p className="text-xs text-[var(--ink-muted)]">
+                Conversations are saved to your account.
               </p>
             )}
 
             <button
               type="button"
               onClick={() => {
-                if (confirm('Clear all history? This cannot be undone.')) {
+                const message = user
+                  ? 'This will delete all conversations from the server. This cannot be undone.'
+                  : 'Clear all history? This cannot be undone.'
+                if (confirm(message)) {
                   onClearAllSessions()
                 }
               }}

@@ -1,0 +1,104 @@
+services:
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    container_name: ecg-reverse-proxy
+    depends_on:
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-20m}
+    volumes:
+      - ./deploy/nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
+    command:
+      - /bin/sh
+      - -c
+      - envsubst '$$APP_DOMAIN $$CLIENT_MAX_BODY_SIZE' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'
+    networks:
+      - ecg-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ecg-frontend
+    networks:
+      - ecg-network
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ecg-backend
+    environment:
+      DEBUG: ${BACKEND_DEBUG:-False}
+      SECRET_KEY: ${BACKEND_SECRET_KEY}
+      API_DOCS_ENABLED: ${BACKEND_API_DOCS_ENABLED:-False}
+      HOST: 0.0.0.0
+      PORT: 8000
+      DATABASE_URL: mysql+asyncmy://${MYSQL_USER}:${MYSQL_PASSWORD}@db:3306/${MYSQL_DATABASE}
+      DEVICE: ${BACKEND_DEVICE:-cpu}
+      CONFIDENCE_THRESHOLD: ${BACKEND_CONFIDENCE_THRESHOLD:-0.7}
+      MODEL_CHECKPOINT_PATH: ${BACKEND_MODEL_CHECKPOINT_PATH:-models/checkpoints/best.ckpt}
+      CORS_ORIGINS: ${BACKEND_CORS_ORIGINS}
+      ALLOWED_HOSTS: ${BACKEND_ALLOWED_HOSTS}
+      LLM_REPORT_ENABLED: ${BACKEND_LLM_REPORT_ENABLED:-False}
+      LLM_REPORT_PROVIDER: ${BACKEND_LLM_REPORT_PROVIDER:-openai}
+      OPENAI_API_KEY: ${BACKEND_OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${BACKEND_OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_REPORT_MODEL: ${BACKEND_OPENAI_REPORT_MODEL:-gpt-4o-mini}
+      OPENAI_TIMEOUT_SECONDS: ${BACKEND_OPENAI_TIMEOUT_SECONDS:-30}
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ecg-network
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.4
+    container_name: ecg-db
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - ecg-network
+    restart: unless-stopped
+
+networks:
+  ecg-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

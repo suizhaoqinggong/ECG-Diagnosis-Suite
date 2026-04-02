@@ -6,9 +6,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.core.config import settings
-from app.core.database import init_db
-from app.api import diagnosis, conduction_disorder
+from app.core.database import get_database_status, init_db, mark_db_unavailable
+from app.api import auth, chat, diagnosis, conduction_disorder
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ async def lifespan(_: FastAPI):
     try:
         await init_db()
     except Exception as exc:
+        mark_db_unavailable(exc)
         logger.warning("Database initialization skipped: %s", exc)
     yield
 
@@ -28,6 +30,14 @@ app = FastAPI(
     version=settings.APP_VERSION,
     description="AI-powered ECG diagnosis system",
     lifespan=lifespan,
+    docs_url="/docs" if settings.API_DOCS_ENABLED else None,
+    redoc_url="/redoc" if settings.API_DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if settings.API_DOCS_ENABLED else None,
+)
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=settings.ALLOWED_HOSTS or ["*"],
 )
 
 # CORS middleware
@@ -40,6 +50,8 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router, prefix="/api", tags=["auth"])
+app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(diagnosis.router, prefix="/api", tags=["diagnosis"])
 app.include_router(conduction_disorder.router, prefix="/api", tags=["conduction-disorder"])
 
@@ -55,7 +67,15 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    db_status = get_database_status()
+    status_value = "healthy" if db_status.ready else "degraded"
+    return {
+        "status": status_value,
+        "database": {
+            "ready": db_status.ready,
+            "error": db_status.error,
+        },
+    }
 
 
 if __name__ == "__main__":
