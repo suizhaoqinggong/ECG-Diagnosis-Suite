@@ -1,4 +1,5 @@
 import apiClient from './client'
+import type { PerLeadQC } from '@/components/QCWarning'
 
 export interface PredictionProbability {
   class: string
@@ -30,6 +31,7 @@ export interface DiagnosisResultData {
   top3_predictions?: PredictionProbability[] | null
   quality_warning?: 'pass' | 'warn' | 'fail' | null
   pipeline_warnings?: string[]
+  per_lead_qc?: PerLeadQC[]
   report: EnhancedDiagnosisReport
 }
 
