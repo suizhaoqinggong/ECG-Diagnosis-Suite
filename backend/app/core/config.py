@@ -1,18 +1,26 @@
 """
 Application configuration
 """
+import logging
+import warnings
 from pathlib import Path
 from typing import List, Optional
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
+    _DEFAULT_SECRET_KEY: str = "your-secret-key-change-this"
+
     # App settings
     APP_NAME: str = "ECG Diagnosis Suite"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
-    SECRET_KEY: str = "your-secret-key-change-this"
+    SECRET_KEY: str = _DEFAULT_SECRET_KEY
+    ENVIRONMENT: str = "development"  # "development" or "production"
     API_DOCS_ENABLED: bool = True
 
     # Server settings
@@ -117,6 +125,28 @@ class Settings(BaseSettings):
                 return resolved
 
         return None
+
+    @model_validator(mode="after")
+    def _validate_production_settings(self):
+        if self.ENVIRONMENT == "production":
+            if self.SECRET_KEY == self._DEFAULT_SECRET_KEY:
+                raise ValueError(
+                    "SECRET_KEY must be overridden in production. "
+                    "Set the SECRET_KEY environment variable to a strong random value."
+                )
+            if self.DEBUG:
+                warnings.warn(
+                    "DEBUG=True in production environment. "
+                    "This should be disabled for security.",
+                    stacklevel=2,
+                )
+        else:
+            if self.SECRET_KEY == self._DEFAULT_SECRET_KEY:
+                logger.warning(
+                    "Using default SECRET_KEY in development mode. "
+                    "Set SECRET_KEY environment variable for production."
+                )
+        return self
 
     def ensure_runtime_dirs(self) -> None:
         self.upload_dir_path.mkdir(parents=True, exist_ok=True)

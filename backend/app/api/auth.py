@@ -1,6 +1,7 @@
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field, field_validator
@@ -80,8 +81,22 @@ def _validate_origin(request: Request) -> None:
     if not origin:
         return  # Allow if no origin (same-origin request)
 
+    parsed = urlparse(origin)
+    # Reject origins with malformed ports (e.g. http://localhost:5173.evil.com)
+    try:
+        parsed_port = parsed.port
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid origin",
+        )
     for allowed in settings.CORS_ORIGINS:
-        if origin.startswith(allowed):
+        allowed_parsed = urlparse(allowed)
+        if (
+            parsed.scheme == allowed_parsed.scheme
+            and parsed.hostname == allowed_parsed.hostname
+            and (allowed_parsed.port is None or parsed_port == allowed_parsed.port)
+        ):
             return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
