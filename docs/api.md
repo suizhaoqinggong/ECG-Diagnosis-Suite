@@ -1,153 +1,111 @@
-# API文档
+# API 文档
 
 ## 基础信息
 
-**Base URL**: `http://localhost:8000`
+- Base URL: `http://127.0.0.1:8000`
+- 交互式文档：`/docs`
 
-**版本**: v1.0.0
+完整 schema 以运行中的 OpenAPI 为准，这里只保留当前常用接口。
 
----
+## 基础接口
 
-## 端点列表
+### `GET /`
 
-### 1. 根路径
+返回 API 基本信息。
 
-**GET /**
+### `GET /health`
 
-返回API基本信息。
+返回服务健康状态与数据库可用性。
 
-**响应示例**:
+示例：
+
 ```json
 {
-  "message": "Welcome to ECG Diagnosis Suite API",
-  "version": "1.0.0",
-  "docs": "/docs"
+  "status": "healthy",
+  "database": {
+    "ready": true,
+    "error": null
+  }
 }
 ```
 
----
+如果数据库初始化失败，`status` 会变成 `degraded`。
 
-### 2. 健康检查
+## 诊断接口
 
-**GET /health**
+### `POST /api/diagnose`
 
-检查服务状态。
+上传单张 ECG 图片并返回诊断结果。
 
-**响应示例**:
-```json
-{
-  "status": "healthy"
-}
-```
-
----
-
-### 3. ECG诊断
-
-**POST /api/diagnose**
-
-上传ECG图片并获取诊断结果。
-
-**请求**:
 - Content-Type: `multipart/form-data`
-- Body: `file` (图片文件)
+- 字段：`file`
+- 支持格式：`.png`、`.jpg`、`.jpeg`
+- 鉴权：可匿名；带 Bearer token 时会把结果写入当前用户历史
 
-**响应示例**:
-```json
-{
-  "prediction": "房颤",
-  "confidence": 0.92,
-  "severity": "中等",
-  "icd_code": "I48.0",
-  "description": "房颤是一种常见的心律失常...",
-  "recommendations": [
-    "建议尽快就医心内科",
-    "避免剧烈运动和情绪激动"
-  ],
-  "timestamp": "2026-03-12T10:30:00",
-  "disclaimer": "本结果仅供参考，不作为临床诊断依据"
-}
-```
+### `POST /api/diagnose-dat`
 
-**错误响应**:
-- `400 Bad Request`: 文件类型不支持
-- `422 Unprocessable Entity`: 缺少文件
-- `500 Internal Server Error`: 服务器错误
+上传一对同名的 `.dat + .hea` 文件并返回诊断结果。
 
----
+- Content-Type: `multipart/form-data`
+- 字段：重复的 `files`
+- 必须同时包含一个 `.dat` 和一个 `.hea`
+- 两个文件去掉扩展名后的文件名必须完全一致
 
-### 4. 历史记录
+### 诊断响应结构
 
-**GET /api/history**
+返回值包含以下关键字段：
 
-获取诊断历史记录。
+- `prediction`
+- `confidence`
+- `severity`
+- `icd_code`
+- `description`
+- `recommendations`
+- `top3_predictions`
+- `all_probabilities`
+- `report`
+- `disclaimer`
 
-**响应示例**:
-```json
-{
-  "message": "功能开发中"
-}
-```
+## 历史与会话
 
----
+### `GET /api/history`
 
-## 状态码说明
+兼容性保留接口，已弃用，且需要登录。
 
-| 状态码 | 说明 |
-|--------|------|
-| 200 | 成功 |
-| 400 | 请求错误 |
-| 401 | 未授权 |
-| 404 | 未找到 |
-| 422 | 验证错误 |
-| 500 | 服务器错误 |
+推荐改用聊天会话接口：
 
----
+- `GET /api/chat/sessions`
+- `POST /api/chat/sessions`
+- `GET /api/chat/sessions/{session_id}/messages`
+- `POST /api/chat/sessions/{session_id}/messages`
 
-## 使用示例
+## 认证接口
 
-### cURL
+认证接口前缀为 `/api/auth`：
+
+- `POST /register`
+- `POST /login`
+- `POST /refresh`
+- `POST /logout`
+- `GET /me`
+- `POST /change-password`
+- `POST /delete-account`
+
+`/refresh` 使用 HttpOnly refresh cookie，前端会在 401 后自动尝试刷新 access token。
+
+## cURL 示例
+
+### 图片诊断
 
 ```bash
-# 上传图片诊断
-curl -X POST "http://localhost:8000/api/diagnose" \
-  -H "accept: application/json" \
-  -H "Content-Type: multipart/form-data" \
+curl -X POST http://127.0.0.1:8000/api/diagnose \
   -F "file=@ecg.png"
 ```
 
-### Python (requests)
+### `.dat + .hea` 诊断
 
-```python
-import requests
-
-url = "http://localhost:8000/api/diagnose"
-files = {"file": open("ecg.png", "rb")}
-response = requests.post(url, files=files)
-print(response.json())
+```bash
+curl -X POST http://127.0.0.1:8000/api/diagnose-dat \
+  -F "files=@record.dat" \
+  -F "files=@record.hea"
 ```
-
-### JavaScript (axios)
-
-```javascript
-import axios from 'axios';
-
-const formData = new FormData();
-formData.append('file', file);
-
-const response = await axios.post(
-  'http://localhost:8000/api/diagnose',
-  formData,
-  { headers: { 'Content-Type': 'multipart/form-data' } }
-);
-
-console.log(response.data);
-```
-
----
-
-## 交互式文档
-
-启动服务后访问:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc

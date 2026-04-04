@@ -12,14 +12,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check Python
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}❌ Python 3 未安装${NC}"
-    echo "请安装 Python 3.10 或更高版本"
+# Check uv
+if ! command -v uv &> /dev/null; then
+    echo -e "${RED}❌ uv 未安装${NC}"
+    echo "请先安装 uv: https://docs.astral.sh/uv/"
     exit 1
 fi
 
-echo -e "${GREEN}✅ Python 已安装${NC}"
+echo -e "${GREEN}✅ uv 已安装${NC}"
 
 # Check Node.js
 if ! command -v node &> /dev/null; then
@@ -35,16 +35,13 @@ echo ""
 echo "📦 设置后端..."
 cd backend
 
-if [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
     echo "创建虚拟环境..."
-    python3 -m venv venv
+    uv venv .venv --python 3.11
 fi
 
-echo "激活虚拟环境..."
-source venv/bin/activate
-
 echo "安装Python依赖..."
-pip install -q -r requirements.txt
+uv pip install --python .venv/bin/python -q -r requirements.txt
 
 # Setup frontend
 echo ""
@@ -53,13 +50,7 @@ cd ../frontend
 
 if [ ! -d "node_modules" ]; then
     echo "安装前端依赖..."
-
-    # Check if pnpm is installed
-    if command -v pnpm &> /dev/null; then
-        pnpm install
-    else
-        npm install
-    fi
+    npm install
 fi
 
 # Create .env files if not exist
@@ -88,12 +79,11 @@ echo "🎯 下一步操作："
 echo ""
 echo "1️⃣  启动后端："
 echo "    cd backend"
-echo "    source venv/bin/activate"
-echo "    uvicorn app.main:app --reload"
+echo "    .venv/bin/python -m uvicorn app.main:app --reload"
 echo ""
 echo "2️⃣  启动前端（新终端）："
 echo "    cd frontend"
-echo "    pnpm dev  # 或 npm run dev"
+echo "    npm run dev"
 echo ""
 echo "3️⃣  访问应用："
 echo "    前端: http://localhost:5173"

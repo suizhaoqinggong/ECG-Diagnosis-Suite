@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
 """
-Test ResNet1D Model Integration
+Manual ResNet1D smoke check.
 
-This script tests the ResNet1D model from ECG-Research
+This file is kept as an ad hoc developer utility and is not part of the
+automated pytest suite.
 """
 import sys
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
 import torch
-import numpy as np
-from ml.resnet1d_model import ResNet1DBaseline, create_resnet1d_model
+from ml.resnet1d_model import ResNet1DBaseline
 from ml.ecg_image_converter import create_dummy_ecg_signal
-from ml.ecg_model_service import ECGModelService
 
 
 def test_model_creation():
@@ -81,66 +80,6 @@ def test_dummy_signal():
     return signal
 
 
-def test_model_service():
-    """测试模型服务"""
-    print("\n" + "=" * 60)
-    print("Test 4: Model Service")
-    print("=" * 60)
-
-    # 创建服务
-    service = ECGModelService(
-        model_type="resnet1d",
-        num_classes=5,
-        device="cpu"
-    )
-
-    # 测试虚拟信号
-    result = service.test_with_dummy_signal()
-
-    print("\n📊 Prediction Result:")
-    print(f"   Prediction: {result['prediction']}")
-    print(f"   Confidence: {result['confidence']:.2%}")
-
-    if 'top3_predictions' in result:
-        print("\n   Top-3 Predictions:")
-        for i, pred in enumerate(result['top3_predictions'], 1):
-            print(f"     {i}. {pred['class']}: {pred['probability']:.2%}")
-
-    print("\n✅ Model service test successful")
-
-    return service
-
-
-def test_image_prediction():
-    """测试图像预测"""
-    print("\n" + "=" * 60)
-    print("Test 5: Image Prediction")
-    print("=" * 60)
-
-    # 创建服务
-    service = ECGModelService(
-        model_type="resnet1d",
-        num_classes=5,
-        device="cpu"
-    )
-
-    # 创建虚拟图像
-    dummy_image = np.random.randint(0, 255, (1200, 1000, 3), dtype=np.uint8)
-
-    print(f"   Image shape: {dummy_image.shape}")
-
-    # 预测
-    result = service.predict(dummy_image)
-
-    print("\n📊 Prediction Result:")
-    print(f"   Prediction: {result['prediction']}")
-    print(f"   Confidence: {result['confidence']:.2%}")
-
-    print("\n✅ Image prediction test successful")
-
-    return result
-
-
 def main():
     """运行所有测试"""
     print("\n" + "🚀" * 30)
@@ -157,20 +96,14 @@ def main():
         # Test 3: 虚拟信号
         signal = test_dummy_signal()
 
-        # Test 4: 模型服务
-        service = test_model_service()
-
-        # Test 5: 图像预测
-        result = test_image_prediction()
-
         print("\n" + "=" * 60)
         print("✅ ALL TESTS PASSED!")
         print("=" * 60)
-        print("\n🎉 ResNet1D model is ready for use!")
+        print("\n🎉 ResNet1D baseline shape checks are ready!")
         print("\nNext steps:")
-        print("  1. Integrate with FastAPI backend")
-        print("  2. Test with real ECG images")
-        print("  3. Deploy to production")
+        print("  1. Add model weight loading if ResNet1D becomes active again")
+        print("  2. Add dedicated inference wiring before reintroducing CI coverage")
+        print("  3. Keep this script as a manual architecture smoke check")
 
         return True
 

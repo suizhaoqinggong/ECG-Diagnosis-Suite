@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for .dat file support in ECG diagnosis
+Manual smoke check for .dat/.hea support.
 
 This script tests:
 1. ECGDataLoader with dummy signal
@@ -9,10 +9,11 @@ This script tests:
 """
 import os
 import sys
+from pathlib import Path
 
-# Add paths
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend/ml'))
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.append(str(PROJECT_ROOT / "backend" / "ml"))
+sys.path.append(str(PROJECT_ROOT / "backend"))
 
 from app.services.ecg_dat_loader import ECGDataLoader, create_test_ecg_signal
 from cardioformer_service import CardioFormerService

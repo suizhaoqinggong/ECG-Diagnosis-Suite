@@ -6,16 +6,16 @@ React + TypeScript frontend for ECG diagnosis system.
 
 ```bash
 # Install dependencies
-pnpm install  # or npm install
+npm install
 
 # Run development server
-pnpm dev  # or npm run dev
+npm run dev
 
 # Build for production
-pnpm build
+npm run build
 
-# Preview production build
-pnpm preview
+# Run frontend tests
+npm test -- --run
 ```
 
 ## Tech Stack
@@ -24,8 +24,8 @@ pnpm preview
 - TypeScript
 - Vite
 - Tailwind CSS
-- React Query
-- Zustand
+- Axios
+- Vitest
 
 ## Project Structure
 

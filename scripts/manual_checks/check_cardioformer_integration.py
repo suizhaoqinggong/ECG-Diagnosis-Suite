@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Test script for CardioFormer integration
+Manual CardioFormer integration smoke check.
 
 This script tests:
 1. Model loading from checkpoint
@@ -9,9 +9,10 @@ This script tests:
 """
 import os
 import sys
+from pathlib import Path
 
-# Add backend/ml to path
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend/ml'))
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.append(str(PROJECT_ROOT / "backend" / "ml"))
 
 from cardioformer_service import CardioFormerService
 import numpy as np

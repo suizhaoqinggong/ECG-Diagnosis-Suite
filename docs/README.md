@@ -1,29 +1,29 @@
-# ECG Diagnosis Suite
+# ECG Diagnosis Suite Docs
 
-完整的项目文档。
+当前仓库的主要文档入口。
 
-## 目录
+## 文档索引
 
-- [安装指南](./installation.md)
-- [快速开始](./quick-start.md)
-- [API文档](./api.md)
+- [API 文档](./api.md)
+- [项目优化方案](./optimization-plan.md)
 - [开发指南](./development.md)
 - [部署指南](./deployment.md)
+- [服务器部署指南](./deployment-guide.md)
+- [生产部署说明](./production-deployment.md)
 
-## 项目概述
+## 项目概览
 
-**ECG Diagnosis Suite** 是一个基于深度学习的心电图智能诊断系统。
+ECG Diagnosis Suite 是一个用于 ECG 图像与信号分析的工程化 MVP，包含：
 
-### 核心功能
+- ECG 图片上传诊断
+- `.dat + .hea` 信号对上传诊断
+- 诊断历史与聊天会话持久化
+- 用户认证与刷新令牌机制
+- 模板化或可选 LLM 增强报告
 
-- 图片上传和预处理
-- AI模型诊断
-- 结果可视化
-- PDF报告生成
+## 当前技术栈
 
-### 技术栈
-
-- **前端**: React + TypeScript + Tailwind CSS
-- **后端**: FastAPI + PyTorch
-- **数据库**: PostgreSQL
-- **部署**: Docker + Nginx
+- 前端：React 18 + TypeScript + Vite + Tailwind CSS
+- 后端：FastAPI + SQLAlchemy + PyTorch
+- 数据库：MySQL（Docker 默认）或 SQLite（本地默认回退）
+- 部署：Docker Compose + Nginx

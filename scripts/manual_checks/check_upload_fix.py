@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """
-验证.dat+.hea双文件上传修复
+手工验证 `.dat + .hea` 双文件上传。
+
+该脚本保留为开发期手工检查工具，不参与自动化 pytest。
 """
 import requests
 import sys

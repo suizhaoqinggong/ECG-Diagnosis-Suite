@@ -1,26 +1,34 @@
 # Tests
 
-测试文件目录。
+自动化测试入口说明。
 
-## 测试类型
+## 当前测试布局
 
-### 单元测试
-- `test_api.py` - API测试
-- `test_preprocessing.py` - 预处理测试
-- `test_model.py` - 模型测试
+- `backend/tests/`：后端单元与集成测试
+- `frontend/src/__tests__/`：前端组件与控制器测试
+- `tests/`：仓库级基础测试
 
-### 集成测试
-- `test_integration.py` - 集成测试
+## 运行方式
 
-### 运行测试
+### 后端
 
 ```bash
-# 运行所有测试
-pytest
+cd backend
+pytest -q tests
+```
 
-# 运行特定测试
-pytest tests/test_api.py
+### 前端
 
-# 生成覆盖率报告
-pytest --cov=app tests/
+```bash
+cd frontend
+npm test -- --run
+```
+
+## 手工检查
+
+历史上的模型联调脚本已经移动到 `scripts/manual_checks/`，不再作为
+`pytest` 自动发现的一部分。
+
+```bash
+python scripts/manual_checks/check_cardioformer_integration.py
 ```

@@ -209,9 +209,9 @@ For request/response details, see [docs/api.md](/Users/azure/ECG-Diagnosis-Suite
 ## Notes and Limitations
 
 - This project is for research and engineering use, not clinical diagnosis.
-- `GET /api/history` currently has no auth layer.
+- `GET /api/history` is deprecated, requires auth, and is kept only for compatibility.
 - The frontend PDF export button is still not wired to a backend endpoint.
-- Some deployment docs still mention PostgreSQL and should be aligned separately.
+- Manual smoke-check scripts now live in `scripts/manual_checks/` and are not part of the automated test suite.
 
 ## License
 

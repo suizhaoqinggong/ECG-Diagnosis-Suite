@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-Test Conduction Disorder Detector
+Manual conduction-disorder smoke check.
 
-测试传导障碍检测器
+This file is kept as an ad hoc developer utility and is not part of the
+automated pytest suite.
 """
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "backend"))
 
 import numpy as np
 from ml.conduction_disorder_detector import ConductionDisorderDetector, create_cd_detector
