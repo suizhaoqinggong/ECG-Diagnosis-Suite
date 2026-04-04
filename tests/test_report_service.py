@@ -6,6 +6,7 @@ service so that the P1-5 refactoring (split into template builder,
 LLM providers, and parser) can proceed safely.
 """
 
+import asyncio
 import json
 import sys
 from pathlib import Path
@@ -366,43 +367,38 @@ class TestLLMReportBody:
 class TestGenerateReport:
     """Tests for DiagnosisReportService.generate_report() coordinator."""
 
-    @pytest.mark.asyncio
-    async def test_returns_template_when_llm_disabled(self, svc):
+    def test_returns_template_when_llm_disabled(self, svc):
         with patch.object(settings, "LLM_REPORT_ENABLED", False):
-            report = await svc.generate_report(**_generate_kwargs())
+            report = asyncio.run(svc.generate_report(**_generate_kwargs()))
         assert report.source == "template"
 
-    @pytest.mark.asyncio
-    async def test_returns_template_when_openai_no_key(self, svc):
+    def test_returns_template_when_openai_no_key(self, svc):
         with (
             patch.object(settings, "LLM_REPORT_ENABLED", True),
             patch.object(settings, "LLM_REPORT_PROVIDER", "openai"),
             patch.object(settings, "OPENAI_API_KEY", None),
         ):
-            report = await svc.generate_report(**_generate_kwargs())
+            report = asyncio.run(svc.generate_report(**_generate_kwargs()))
         assert report.source == "template"
 
-    @pytest.mark.asyncio
-    async def test_returns_template_when_anthropic_no_key(self, svc):
+    def test_returns_template_when_anthropic_no_key(self, svc):
         with (
             patch.object(settings, "LLM_REPORT_ENABLED", True),
             patch.object(settings, "LLM_REPORT_PROVIDER", "anthropic_compatible"),
             patch.object(settings, "ANTHROPIC_COMPAT_API_KEY", None),
         ):
-            report = await svc.generate_report(**_generate_kwargs())
+            report = asyncio.run(svc.generate_report(**_generate_kwargs()))
         assert report.source == "template"
 
-    @pytest.mark.asyncio
-    async def test_returns_template_for_unsupported_provider(self, svc):
+    def test_returns_template_for_unsupported_provider(self, svc):
         with (
             patch.object(settings, "LLM_REPORT_ENABLED", True),
             patch.object(settings, "LLM_REPORT_PROVIDER", "nonexistent"),
         ):
-            report = await svc.generate_report(**_generate_kwargs())
+            report = asyncio.run(svc.generate_report(**_generate_kwargs()))
         assert report.source == "template"
 
-    @pytest.mark.asyncio
-    async def test_falls_back_to_template_on_llm_exception(self, svc):
+    def test_falls_back_to_template_on_llm_exception(self, svc):
         with (
             patch.object(settings, "LLM_REPORT_ENABLED", True),
             patch.object(settings, "LLM_REPORT_PROVIDER", "openai"),
@@ -412,11 +408,10 @@ class TestGenerateReport:
                 svc, "_generate_with_openai", new_callable=AsyncMock
             ) as mock_gen:
                 mock_gen.side_effect = RuntimeError("LLM down")
-                report = await svc.generate_report(**_generate_kwargs())
+                report = asyncio.run(svc.generate_report(**_generate_kwargs()))
         assert report.source == "template"
 
-    @pytest.mark.asyncio
-    async def test_falls_back_to_template_when_llm_returns_none(self, svc):
+    def test_falls_back_to_template_when_llm_returns_none(self, svc):
         with (
             patch.object(settings, "LLM_REPORT_ENABLED", True),
             patch.object(settings, "LLM_REPORT_PROVIDER", "openai"),
@@ -425,11 +420,10 @@ class TestGenerateReport:
                 svc, "_generate_with_openai", new_callable=AsyncMock, return_value=None
             ),
         ):
-            report = await svc.generate_report(**_generate_kwargs())
+            report = asyncio.run(svc.generate_report(**_generate_kwargs()))
         assert report.source == "template"
 
-    @pytest.mark.asyncio
-    async def test_returns_llm_report_on_success(self, svc):
+    def test_returns_llm_report_on_success(self, svc):
         llm_report = DiagnosisEnhancedReport(
             source="llm",
             model="gpt-4o-mini",
@@ -444,25 +438,23 @@ class TestGenerateReport:
                 svc, "_generate_with_openai", new_callable=AsyncMock, return_value=llm_report
             ),
         ):
-            report = await svc.generate_report(**_generate_kwargs())
+            report = asyncio.run(svc.generate_report(**_generate_kwargs()))
         assert report.source == "llm"
         assert report.model == "gpt-4o-mini"
 
-    @pytest.mark.asyncio
-    async def test_passes_relevant_kwargs_to_template_builder(self, svc):
+    def test_passes_relevant_kwargs_to_template_builder(self, svc):
         """generate_report passes template-relevant params through to build_template_report."""
         kwargs = _generate_kwargs()
         with (
             patch.object(settings, "LLM_REPORT_ENABLED", False),
             patch.object(svc, "build_template_report", wraps=svc.build_template_report) as spy,
         ):
-            await svc.generate_report(**kwargs)
+            asyncio.run(svc.generate_report(**kwargs))
         # build_template_report doesn't receive all_probabilities
         expected_call_kwargs = {k: v for k, v in kwargs.items() if k != "all_probabilities"}
         spy.assert_called_once_with(**expected_call_kwargs)
 
-    @pytest.mark.asyncio
-    async def test_anthropic_provider_alias_zhipu(self, svc):
+    def test_anthropic_provider_alias_zhipu(self, svc):
         """zhipu_anthropic provider uses _generate_with_anthropic_compatible."""
         with (
             patch.object(settings, "LLM_REPORT_ENABLED", True),
@@ -472,7 +464,7 @@ class TestGenerateReport:
                 svc, "_generate_with_anthropic_compatible", new_callable=AsyncMock, return_value=None
             ) as mock_gen,
         ):
-            await svc.generate_report(**_generate_kwargs())
+            asyncio.run(svc.generate_report(**_generate_kwargs()))
         mock_gen.assert_called_once()
 
 
