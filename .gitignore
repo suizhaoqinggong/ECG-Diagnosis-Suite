@@ -92,3 +92,6 @@ coverage.xml
 secrets/
 credentials.json
 .worktrees/
+
+# Debug screenshots
+*.png
