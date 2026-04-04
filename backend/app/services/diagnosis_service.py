@@ -11,6 +11,7 @@ can wire in patchable functions (enabling existing tests to keep targeting
 
 import logging
 import shutil
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type
@@ -231,16 +232,20 @@ class DiagnosisService:
         user_id: int | None = None,
     ) -> DiagnosisResponse:
         """Full image diagnosis pipeline."""
+        t_total_start = time.perf_counter()
         settings.ensure_runtime_dirs()
         upload_dir = settings.upload_dir_path
 
         file_path = upload_dir / f"{_timestamp()}_{safe_name}"
 
+        t0 = time.perf_counter()
         save_upload(file, file_path)
+        t_upload = time.perf_counter() - t0
 
         try:
             # Safe image decoding (defends against compression bombs, corrupt images, etc.)
             try:
+                t0 = time.perf_counter()
                 decoded = self._decode_image_fn(
                     str(file_path),
                     max_pixels=settings.IMAGE_MAX_PIXELS,
@@ -248,6 +253,7 @@ class DiagnosisService:
                     processing_max_dimension=settings.IMAGE_PROCESSING_MAX_DIMENSION,
                 )
                 image_array = decoded.image_rgb
+                t_decode = time.perf_counter() - t0
             except ImageDecodeError as e:
                 raise HTTPException(
                     status_code=400,
@@ -263,13 +269,17 @@ class DiagnosisService:
             logger.info("   Image shape: %s", image_array.shape)
 
             # --- Signal extraction with QC ---
+            t0 = time.perf_counter()
             extraction = self._model_service.image_converter.extract_with_result(image_array)
             signal_np = extraction.signals
+            t_extract = time.perf_counter() - t0
 
             # --- Inter-lead collapse quality gate (P0) ---
             from ml.signal_quality import analyze_signal_quality
 
+            t0 = time.perf_counter()
             quality_report = analyze_signal_quality(signal_np)
+            t_quality = time.perf_counter() - t0
 
             # Collect pipeline warnings from extraction QC
             from ml.pipeline_types import ExtractionResult
@@ -328,25 +338,46 @@ class DiagnosisService:
                     pipeline_warnings=pipeline_warnings,
                     report=report,
                 )
+                t_total = time.perf_counter() - t_total_start
+                logger.info(
+                    "⏱  Pipeline timing (collapsed): upload=%.1fms decode=%.1fms "
+                    "extract=%.1fms quality=%.1fms total=%.1fms",
+                    t_upload * 1000, t_decode * 1000, t_extract * 1000,
+                    t_quality * 1000, t_total * 1000,
+                )
                 return response
 
             # --- Normal inference path ---
             logger.info("🔮 Running CardioFormer inference...")
+            t0 = time.perf_counter()
             result = self._model_service.predict_from_signal(signal_np)
+            t_inference = time.perf_counter() - t0
             result["extraction_qc"] = extraction
 
             logger.info("✅ Inference completed")
             logger.info("   Prediction: %s", result['prediction'])
             logger.info("   Confidence: %.2f%%", result['confidence'] * 100)
 
+            t0 = time.perf_counter()
             response = await _create_diagnosis_response(
                 file_reference=file.filename,
                 result=result,
                 input_mode="image",
                 user_id=user_id,
             )
+            t_report = time.perf_counter() - t0
             response.quality_warning = quality_warning
             response.pipeline_warnings = pipeline_warnings
+
+            t_total = time.perf_counter() - t_total_start
+            logger.info(
+                "⏱  Pipeline timing: upload=%.1fms decode=%.1fms "
+                "extract=%.1fms quality=%.1fms inference=%.1fms "
+                "report=%.1fms total=%.1fms",
+                t_upload * 1000, t_decode * 1000, t_extract * 1000,
+                t_quality * 1000, t_inference * 1000, t_report * 1000,
+                t_total * 1000,
+            )
             return response
 
         except HTTPException:
@@ -365,13 +396,16 @@ class DiagnosisService:
         user_id: int | None = None,
     ) -> DiagnosisResponse:
         """Diagnose from a .dat file that already has a matching .hea on disk."""
+        t_total_start = time.perf_counter()
         logger.info("📁 Processing .dat file: %s", file_reference)
 
         # Load signal data
         loader = self._ecg_loader_cls(target_length=1000, target_leads=12, normalize=True)
 
         try:
+            t0 = time.perf_counter()
             signal_data, metadata = loader.load_dat_file(str(dat_path))
+            t_load = time.perf_counter() - t0
         except FileNotFoundError as e:
             raise HTTPException(
                 status_code=400,
@@ -390,19 +424,32 @@ class DiagnosisService:
 
         # Model inference directly from signal
         logger.info("🔮 Running CardioFormer inference on signal data...")
+        t0 = time.perf_counter()
         result = self._model_service.predict_from_signal(signal_data)
+        t_inference = time.perf_counter() - t0
 
         logger.info("✅ Inference completed")
         logger.info("   Prediction: %s", result['prediction'])
         logger.info("   Confidence: %.2f%%", result['confidence'] * 100)
 
-        return await _create_diagnosis_response(
+        t0 = time.perf_counter()
+        response = await _create_diagnosis_response(
             file_reference=file_reference,
             result=result,
             input_mode="signal",
             metadata=metadata,
             user_id=user_id,
         )
+        t_report = time.perf_counter() - t0
+
+        t_total = time.perf_counter() - t_total_start
+        logger.info(
+            "⏱  Pipeline timing (signal): load=%.1fms inference=%.1fms "
+            "report=%.1fms total=%.1fms",
+            t_load * 1000, t_inference * 1000, t_report * 1000,
+            t_total * 1000,
+        )
+        return response
 
     async def diagnose_dat_pair(
         self,
@@ -413,6 +460,7 @@ class DiagnosisService:
         user_id: int | None = None,
     ) -> DiagnosisResponse:
         """Full dat+hea pair diagnosis pipeline."""
+        t_total_start = time.perf_counter()
         settings.ensure_runtime_dirs()
         upload_dir = settings.upload_dir_path
         temp_dir = upload_dir / f"session_{_timestamp()}"
@@ -422,18 +470,26 @@ class DiagnosisService:
         hea_path = temp_dir / hea_safe
 
         try:
+            t0 = time.perf_counter()
             save_upload(dat_file, dat_path)
             save_upload(hea_file, hea_path)
+            t_upload = time.perf_counter() - t0
 
-            logger.info("✅ Files saved:")
+            logger.info("✅ Files saved (%.1fms):", t_upload * 1000)
             logger.info("   .dat: %s", dat_path)
             logger.info("   .hea: %s", hea_path)
 
-            return await self.diagnose_signal(
+            response = await self.diagnose_signal(
                 dat_path=dat_path,
                 file_reference=dat_file.filename,
                 user_id=user_id,
             )
+            t_total = time.perf_counter() - t_total_start
+            logger.info(
+                "⏱  Pipeline timing (dat-pair): upload=%.1fms total=%.1fms",
+                t_upload * 1000, t_total * 1000,
+            )
+            return response
 
         except HTTPException:
             raise
