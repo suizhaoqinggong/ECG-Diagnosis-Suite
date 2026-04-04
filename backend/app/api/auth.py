@@ -90,6 +90,9 @@ def _validate_origin(request: Request) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid origin",
         )
+    # Normalize missing port to scheme default for consistent comparison
+    if parsed_port is None:
+        parsed_port = 443 if parsed.scheme == "https" else 80
     for allowed in settings.CORS_ORIGINS:
         allowed_parsed = urlparse(allowed)
         # When the allowed origin has no explicit port, bind to scheme default
