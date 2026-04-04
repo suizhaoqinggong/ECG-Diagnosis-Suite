@@ -1,7 +1,7 @@
 """
 Protective tests for diagnosis API endpoints.
 
-Locks in current behavior of /api/diagnose, /api/diagnose-dat, and /api/history
+Locks in current behavior of /api/diagnose and /api/diagnose-dat
 before the planned service extraction refactoring (P0-2 in optimization-plan.md).
 
 These are characterization tests: they verify the CURRENT behavior so that
@@ -129,7 +129,6 @@ def _mock_image_diagnosis(model_result=None):
         model_result = _model_result()
 
     return (
-        patch("app.api.diagnosis._save_diagnosis_record", new_callable=AsyncMock),
         patch("ml.signal_quality.analyze_signal_quality", return_value=_make_quality_report(collapsed=False)),
         patch("app.api.diagnosis.get_model_service"),
         patch("app.api.diagnosis.safe_decode_image", return_value=_make_decoded_image()),
@@ -175,7 +174,6 @@ class TestDiagnoseImage:
     def test_success_returns_complete_response(self, client):
         """Valid image → 200 with all expected fields."""
         with (
-            patch("app.api.diagnosis._save_diagnosis_record", new_callable=AsyncMock),
             patch("ml.signal_quality.analyze_signal_quality", return_value=_make_quality_report(collapsed=False)),
             patch("app.api.diagnosis.get_model_service") as mock_get_service,
             patch("app.api.diagnosis.safe_decode_image", return_value=_make_decoded_image()),
@@ -219,7 +217,6 @@ class TestDiagnoseImage:
     def test_symptom_database_enrichment(self, client):
         """Response includes severity, icd_code, description from SYMPTOM_DATABASE."""
         with (
-            patch("app.api.diagnosis._save_diagnosis_record", new_callable=AsyncMock),
             patch("ml.signal_quality.analyze_signal_quality", return_value=_make_quality_report(collapsed=False)),
             patch("app.api.diagnosis.get_model_service") as mock_get_service,
             patch("app.api.diagnosis.safe_decode_image", return_value=_make_decoded_image()),
@@ -240,7 +237,6 @@ class TestDiagnoseImage:
     def test_quality_gate_collapsed_skips_inference(self, client):
         """Collapsed signal → 200 with quality warning, no model inference."""
         with (
-            patch("app.api.diagnosis._save_diagnosis_record", new_callable=AsyncMock) as mock_save,
             patch("ml.signal_quality.analyze_signal_quality", return_value=_make_quality_report(collapsed=True)),
             patch("app.api.diagnosis.get_model_service") as mock_get_service,
             patch("app.api.diagnosis.safe_decode_image", return_value=_make_decoded_image()),
@@ -265,13 +261,9 @@ class TestDiagnoseImage:
             # Quality feedback present
             assert len(data["pipeline_warnings"]) > 0
 
-            # History record should still be persisted even for collapsed uploads
-            mock_save.assert_awaited_once()
-
     def test_model_failure_returns_500(self, client):
         """Model inference exception → 500."""
         with (
-            patch("app.api.diagnosis._save_diagnosis_record", new_callable=AsyncMock),
             patch("ml.signal_quality.analyze_signal_quality", return_value=_make_quality_report(collapsed=False)),
             patch("app.api.diagnosis.get_model_service") as mock_get_service,
             patch("app.api.diagnosis.safe_decode_image", return_value=_make_decoded_image()),
@@ -341,7 +333,6 @@ class TestDiagnoseDatPair:
     def test_success_returns_complete_response(self, client):
         """Valid matched dat+hea pair → 200 with all expected fields."""
         with (
-            patch("app.api.diagnosis._save_diagnosis_record", new_callable=AsyncMock),
             patch("app.api.diagnosis.get_model_service") as mock_get_service,
             patch("app.api.diagnosis.ECGDataLoader") as MockLoader,
         ):
@@ -387,7 +378,6 @@ class TestDiagnoseDatPair:
     def test_invalid_signal_returns_400(self, client):
         """Signal validation fails → 400."""
         with (
-            patch("app.api.diagnosis._save_diagnosis_record", new_callable=AsyncMock),
             patch("app.api.diagnosis.get_model_service") as mock_get_service,
             patch("app.api.diagnosis.ECGDataLoader") as MockLoader,
         ):
@@ -407,84 +397,6 @@ class TestDiagnoseDatPair:
 
             assert response.status_code == 400
             assert "信号" in response.json()["detail"] or "数据" in response.json()["detail"]
-
-
-# ===== GET /api/history =====
-
-
-class TestDiagnosisHistory:
-    """Tests for GET /api/history (deprecated endpoint)."""
-
-    def test_without_auth_returns_401(self, client):
-        """No Bearer token → 401."""
-        response = client.get("/api/history")
-        assert response.status_code == 401
-
-    def test_with_auth_returns_correct_structure(self, client):
-        """Authenticated request → 200 with {items: [...], count: N}."""
-        from app.core.auth_dependencies import get_current_user
-
-        mock_user = MagicMock()
-        mock_user.id = 1
-        mock_user.is_active = True
-
-        app.dependency_overrides[get_current_user] = lambda: mock_user
-        try:
-            response = client.get("/api/history")
-            assert response.status_code == 200
-            data = response.json()
-            assert "items" in data
-            assert "count" in data
-            assert isinstance(data["items"], list)
-            assert isinstance(data["count"], int)
-            assert data["count"] == len(data["items"])
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
-
-    def test_limit_validation_rejects_zero(self, client):
-        """limit=0 → 400."""
-        from app.core.auth_dependencies import get_current_user
-
-        mock_user = MagicMock()
-        mock_user.id = 1
-        mock_user.is_active = True
-
-        app.dependency_overrides[get_current_user] = lambda: mock_user
-        try:
-            response = client.get("/api/history?limit=0")
-            assert response.status_code == 400
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
-
-    def test_limit_validation_rejects_over_100(self, client):
-        """limit=200 → 400."""
-        from app.core.auth_dependencies import get_current_user
-
-        mock_user = MagicMock()
-        mock_user.id = 1
-        mock_user.is_active = True
-
-        app.dependency_overrides[get_current_user] = lambda: mock_user
-        try:
-            response = client.get("/api/history?limit=200")
-            assert response.status_code == 400
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
-
-    def test_limit_accepts_valid_range(self, client):
-        """limit=50 → 200."""
-        from app.core.auth_dependencies import get_current_user
-
-        mock_user = MagicMock()
-        mock_user.id = 1
-        mock_user.is_active = True
-
-        app.dependency_overrides[get_current_user] = lambda: mock_user
-        try:
-            response = client.get("/api/history?limit=50")
-            assert response.status_code == 200
-        finally:
-            app.dependency_overrides.pop(get_current_user, None)
 
 
 # ===== SYMPTOM_DATABASE lookup =====

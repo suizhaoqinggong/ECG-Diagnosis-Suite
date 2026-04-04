@@ -20,9 +20,7 @@ from fastapi import HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
 from app.core.config import settings
-from app.core.database import AsyncSessionLocal
 from app.core.upload import save_upload
-from app.models.db_models import DiagnosisRecord
 from app.services.diagnosis_report_service import (
     DiagnosisEnhancedReport,
     get_diagnosis_report_service,
@@ -156,25 +154,6 @@ def _timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-async def _save_diagnosis_record(
-    file_reference: str, result: DiagnosisResponse, user_id: int | None = None
-) -> None:
-    async with AsyncSessionLocal() as session:
-        session.add(
-            DiagnosisRecord(
-                image_path=file_reference,
-                user_id=user_id,
-                prediction=result.prediction,
-                confidence=result.confidence,
-                severity=result.severity,
-                icd_code=result.icd_code,
-                description=result.description,
-                recommendations=result.recommendations,
-            )
-        )
-        await session.commit()
-
-
 async def _create_diagnosis_response(
     *,
     file_reference: str,
@@ -182,7 +161,6 @@ async def _create_diagnosis_response(
     input_mode: str,
     metadata: Optional[Dict[str, Any]] = None,
     user_id: int | None = None,
-    save_record_fn: Callable = _save_diagnosis_record,
 ) -> DiagnosisResponse:
     prediction = result["prediction"]
     confidence = result["confidence"]
@@ -215,7 +193,6 @@ async def _create_diagnosis_response(
         secondary_findings=result.get("secondary_findings"),
         report=report,
     )
-    await save_record_fn(file_reference, response, user_id=user_id)
     return response
 
 
@@ -234,12 +211,10 @@ class DiagnosisService:
 
     def __init__(
         self,
-        save_record_fn: Callable,
         get_model_service_fn: Callable,
         ecg_loader_cls: Type,
         decode_image_fn: Callable,
     ):
-        self._save_record_fn = save_record_fn
         self._get_model_service_fn = get_model_service_fn
         self._ecg_loader_cls = ecg_loader_cls
         self._decode_image_fn = decode_image_fn
@@ -353,8 +328,6 @@ class DiagnosisService:
                     pipeline_warnings=pipeline_warnings,
                     report=report,
                 )
-                # Persist collapsed uploads to history
-                await self._save_record_fn(file.filename, response, user_id=user_id)
                 return response
 
             # --- Normal inference path ---
@@ -371,7 +344,6 @@ class DiagnosisService:
                 result=result,
                 input_mode="image",
                 user_id=user_id,
-                save_record_fn=self._save_record_fn,
             )
             response.quality_warning = quality_warning
             response.pipeline_warnings = pipeline_warnings
@@ -430,7 +402,6 @@ class DiagnosisService:
             input_mode="signal",
             metadata=metadata,
             user_id=user_id,
-            save_record_fn=self._save_record_fn,
         )
 
     async def diagnose_dat_pair(

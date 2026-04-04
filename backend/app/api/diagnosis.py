@@ -9,18 +9,14 @@ import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
 
-from app.core.auth_dependencies import get_current_user, get_optional_user
-from app.core.database import AsyncSessionLocal
+from app.core.auth_dependencies import get_optional_user
 from app.core.upload import sanitize_filename, validate_extension
-from app.models.db_models import DiagnosisRecord
 from app.models.user import User
 from app.services.diagnosis_service import (
     DiagnosisResponse,
     DiagnosisService,
     SYMPTOM_DATABASE,
-    _save_diagnosis_record,
     get_model_service,
 )
 from app.services.ecg_dat_loader import ECGDataLoader
@@ -39,7 +35,6 @@ def _get_diagnosis_service() -> DiagnosisService:
     ``app.api.diagnosis.<name>`` intercept the calls.
     """
     return DiagnosisService(
-        save_record_fn=_save_diagnosis_record,
         get_model_service_fn=get_model_service,
         ecg_loader_cls=ECGDataLoader,
         decode_image_fn=safe_decode_image,
@@ -140,29 +135,3 @@ async def diagnose_ecg_dat_files(
         hea_safe=hea_safe,
         user_id=user_id,
     )
-
-
-@router.get("/history", deprecated=True)
-async def get_diagnosis_history(
-    limit: int = 20,
-    current_user: User = Depends(get_current_user),
-):
-    """
-    获取诊断历史记录（已弃用，请使用 chat API）
-    """
-    if limit < 1 or limit > 100:
-        raise HTTPException(status_code=400, detail="limit 必须在 1 到 100 之间")
-
-    async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            select(DiagnosisRecord)
-            .where(DiagnosisRecord.user_id == current_user.id)
-            .order_by(DiagnosisRecord.created_at.desc())
-            .limit(limit)
-        )
-        records = result.scalars().all()
-
-    return {
-        "items": [record.to_dict() for record in records],
-        "count": len(records),
-    }
