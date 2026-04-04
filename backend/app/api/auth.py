@@ -92,10 +92,16 @@ def _validate_origin(request: Request) -> None:
         )
     for allowed in settings.CORS_ORIGINS:
         allowed_parsed = urlparse(allowed)
+        # When the allowed origin has no explicit port, bind to scheme default
+        if allowed_parsed.port is None:
+            default_port = 443 if allowed_parsed.scheme == "https" else 80
+            if parsed_port != default_port:
+                continue
+        elif parsed_port != allowed_parsed.port:
+            continue
         if (
             parsed.scheme == allowed_parsed.scheme
             and parsed.hostname == allowed_parsed.hostname
-            and (allowed_parsed.port is None or parsed_port == allowed_parsed.port)
         ):
             return
     raise HTTPException(

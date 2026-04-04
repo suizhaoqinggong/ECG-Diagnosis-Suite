@@ -128,7 +128,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_production_settings(self):
-        if self.ENVIRONMENT == "production":
+        env = self.ENVIRONMENT.strip().lower()
+        if env == "production":
             if self.SECRET_KEY == self._DEFAULT_SECRET_KEY:
                 raise ValueError(
                     "SECRET_KEY must be overridden in production. "
