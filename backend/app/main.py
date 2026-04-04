@@ -6,12 +6,26 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.core.config import settings
 from app.core.database import get_database_status, init_db, mark_db_unavailable
 from app.api import auth, chat, diagnosis, conduction_disorder
 
 logger = logging.getLogger(__name__)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if not settings.DEBUG:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        return response
 
 
 @asynccontextmanager
@@ -40,13 +54,16 @@ app.add_middleware(
     allowed_hosts=settings.ALLOWED_HOSTS or ["*"],
 )
 
+# Security headers middleware (added before CORS so headers are set on all responses)
+app.add_middleware(SecurityHeadersMiddleware)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Include routers
