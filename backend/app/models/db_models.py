@@ -2,10 +2,12 @@
 Database Models
 """
 from sqlalchemy import Column, Integer, String, Float, DateTime, JSON, Text, ForeignKey, Index
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.sql import func
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
 
 
 class DiagnosisRecord(Base):

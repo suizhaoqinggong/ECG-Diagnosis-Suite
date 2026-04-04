@@ -6,7 +6,7 @@ import warnings
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import model_validator
+from pydantic import ConfigDict, model_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -153,9 +153,10 @@ class Settings(BaseSettings):
         self.upload_dir_path.mkdir(parents=True, exist_ok=True)
         self.report_output_dir_path.mkdir(parents=True, exist_ok=True)
 
-    class Config:
-        env_file = Path(__file__).resolve().parents[2] / ".env"
-        case_sensitive = True
+    model_config = ConfigDict(
+        env_file=Path(__file__).resolve().parents[2] / ".env",
+        case_sensitive=True,
+    )
 
 
 settings = Settings()
