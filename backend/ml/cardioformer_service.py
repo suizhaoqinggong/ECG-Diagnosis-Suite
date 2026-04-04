@@ -4,12 +4,15 @@ CardioFormer Service for ECG Diagnosis
 Provides a high-level service interface for ECG diagnosis using CardioFormer model.
 Supports both image-based and signal-based inference.
 """
+import logging
 import os
 import torch
 import torch.nn.functional as F
 from typing import Dict, Optional
 import numpy as np
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Handle both relative and absolute imports
 try:
@@ -89,10 +92,10 @@ class CardioFormerService:
             "HYP": "心室肥大"
         }
 
-        print(f"✅ CardioFormer Service initialized")
-        print(f"   Device: {self.device}")
-        print(f"   Classes: {self.class_names}")
-        print(f"   Checkpoint: {checkpoint_path or 'Random initialization'}")
+        logger.info("✅ CardioFormer Service initialized")
+        logger.info("   Device: %s", self.device)
+        logger.info("   Classes: %s", self.class_names)
+        logger.info("   Checkpoint: %s", checkpoint_path or 'Random initialization')
 
     def preprocess_signal(self, signal: np.ndarray) -> torch.Tensor:
         """
@@ -251,7 +254,7 @@ class CardioFormerService:
         Returns:
             测试结果
         """
-        print("🧪 Testing with dummy ECG signal...")
+        logger.info("🧪 Testing with dummy ECG signal...")
 
         # 创建虚拟信号
         dummy_signal = create_dummy_ecg_signal(
@@ -262,9 +265,9 @@ class CardioFormerService:
         # 预测
         result = self.predict_from_signal(dummy_signal.squeeze(0).numpy())
 
-        print("✅ Test completed")
-        print(f"   Prediction: {result['prediction']}")
-        print(f"   Confidence: {result['confidence']:.2%}")
+        logger.info("✅ Test completed")
+        logger.info("   Prediction: %s", result['prediction'])
+        logger.info("   Confidence: %.2f%%", result['confidence'] * 100)
 
         return result
 

@@ -2,6 +2,7 @@
 Diagnosis API endpoints
 """
 
+import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -28,6 +29,8 @@ from ml.image_decoder import (
     ImageProcessingError,
     safe_decode_image,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -61,10 +64,10 @@ def get_model_service():
         checkpoint_path = settings.get_model_checkpoint_path()
 
         if checkpoint_path is None:
-            print("⚠️  No model checkpoint found in configured locations.")
-            print("   Falling back to random initialization (for testing only).")
+            logger.warning("⚠️  No model checkpoint found in configured locations.")
+            logger.warning("   Falling back to random initialization (for testing only).")
         else:
-            print(f"✅ Found checkpoint: {checkpoint_path}")
+            logger.info("✅ Found checkpoint: %s", checkpoint_path)
 
         _model_service = CardioFormerService(
             checkpoint_path=str(checkpoint_path) if checkpoint_path else None,
@@ -252,7 +255,7 @@ async def _diagnose_dat_file(file: UploadFile, safe_name: str, user_id: int | No
     try:
         save_upload(file, dat_path)
 
-        print(f"📁 Processing .dat file: {file.filename}")
+        logger.info("📁 Processing .dat file: %s", file.filename)
 
         # 加载.dat文件
         loader = ECGDataLoader(target_length=1000, target_leads=12, normalize=True)
@@ -274,20 +277,20 @@ async def _diagnose_dat_file(file: UploadFile, safe_name: str, user_id: int | No
                 status_code=400, detail="信号数据格式无效，请检查数据完整性"
             )
 
-        print(f"✅ Signal loaded successfully")
-        print(f"   Shape: {signal_data.shape}")
-        print(f"   Sample rate: {metadata.get('fs', 'unknown')} Hz")
+        logger.info("✅ Signal loaded successfully")
+        logger.info("   Shape: %s", signal_data.shape)
+        logger.info("   Sample rate: %s Hz", metadata.get('fs', 'unknown'))
 
         # 获取模型服务
         service = get_model_service()
 
         # 直接从信号进行推理（跳过图像转换）
-        print("🔮 Running CardioFormer inference on signal data...")
+        logger.info("🔮 Running CardioFormer inference on signal data...")
         result = service.predict_from_signal(signal_data)
 
-        print(f"✅ Inference completed")
-        print(f"   Prediction: {result['prediction']}")
-        print(f"   Confidence: {result['confidence']:.2%}")
+        logger.info("✅ Inference completed")
+        logger.info("   Prediction: %s", result['prediction'])
+        logger.info("   Confidence: %.2f%%", result['confidence'] * 100)
 
         return await _create_diagnosis_response(
             file_reference=file.filename,
@@ -301,15 +304,11 @@ async def _diagnose_dat_file(file: UploadFile, safe_name: str, user_id: int | No
         # 重新抛出HTTP异常
         raise
     except Exception as e:
-        print(f"❌ .dat diagnosis failed: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("❌ .dat diagnosis failed: %s", str(e))
         raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
     finally:
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
-
 
 async def _diagnose_image_file(file: UploadFile, safe_name: str, user_id: int | None = None) -> DiagnosisResponse:
     """
@@ -343,8 +342,8 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str, user_id: int | 
                 detail=f"图像处理失败: {str(e)}",
             )
 
-        print(f"📸 Processing image: {file.filename}")
-        print(f"   Image shape: {image_array.shape}")
+        logger.info("📸 Processing image: %s", file.filename)
+        logger.info("   Image shape: %s", image_array.shape)
 
         # 获取模型服务
         service = get_model_service()
@@ -383,9 +382,9 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str, user_id: int | 
 
         # --- If collapsed, skip model inference ---
         if quality_report.is_collapsed:
-            print(f"⚠️  Signal quality gate FAILED — skipping inference")
+            logger.warning("⚠️  Signal quality gate FAILED — skipping inference")
             if quality_report.warning:
-                print(f"   {quality_report.warning}")
+                logger.warning("   %s", quality_report.warning)
 
             pipeline_warnings.insert(0, quality_report.warning or "信号质量不足")
 
@@ -422,13 +421,13 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str, user_id: int | 
             return response
 
         # --- Normal inference path ---
-        print("🔮 Running CardioFormer inference...")
+        logger.info("🔮 Running CardioFormer inference...")
         result = service.predict_from_signal(signal_np)
         result["extraction_qc"] = extraction
 
-        print(f"✅ Inference completed")
-        print(f"   Prediction: {result['prediction']}")
-        print(f"   Confidence: {result['confidence']:.2%}")
+        logger.info("✅ Inference completed")
+        logger.info("   Prediction: %s", result['prediction'])
+        logger.info("   Confidence: %.2f%%", result['confidence'] * 100)
 
         response = await _create_diagnosis_response(
             file_reference=file.filename,
@@ -444,10 +443,7 @@ async def _diagnose_image_file(file: UploadFile, safe_name: str, user_id: int | 
         # 重新抛出 HTTP 异常（包括图像解码错误 400）
         raise
     except Exception as e:
-        print(f"❌ Image diagnosis failed: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("❌ Image diagnosis failed: %s", str(e))
         raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
     finally:
         file_path.unlink(missing_ok=True)
@@ -499,7 +495,7 @@ async def diagnose_ecg_dat_files(
             detail=f".dat和.hea文件名必须相同（不含扩展名）。.dat: {dat_name}, .hea: {hea_name}",
         )
 
-    print(f"📁 Processing .dat + .hea files: {dat_file.filename} + {hea_file.filename}")
+    logger.info("📁 Processing .dat + .hea files: %s + %s", dat_file.filename, hea_file.filename)
 
     settings.ensure_runtime_dirs()
     upload_dir = settings.upload_dir_path
@@ -516,9 +512,9 @@ async def diagnose_ecg_dat_files(
         save_upload(dat_file, dat_path)
         save_upload(hea_file, hea_path)
 
-        print(f"✅ Files saved:")
-        print(f"   .dat: {dat_path}")
-        print(f"   .hea: {hea_path}")
+        logger.info("✅ Files saved:")
+        logger.info("   .dat: %s", dat_path)
+        logger.info("   .hea: %s", hea_path)
 
         # 加载.dat文件
         loader = ECGDataLoader(target_length=1000, target_leads=12, normalize=True)
@@ -531,20 +527,20 @@ async def diagnose_ecg_dat_files(
                 status_code=400, detail="信号数据格式无效，请检查数据完整性"
             )
 
-        print(f"✅ Signal loaded successfully")
-        print(f"   Shape: {signal_data.shape}")
-        print(f"   Sample rate: {metadata.get('fs', 'unknown')} Hz")
+        logger.info("✅ Signal loaded successfully")
+        logger.info("   Shape: %s", signal_data.shape)
+        logger.info("   Sample rate: %s Hz", metadata.get('fs', 'unknown'))
 
         # 获取模型服务
         service = get_model_service()
 
         # 直接从信号进行推理
-        print("🔮 Running CardioFormer inference on signal data...")
+        logger.info("🔮 Running CardioFormer inference on signal data...")
         result = service.predict_from_signal(signal_data)
 
-        print(f"✅ Inference completed")
-        print(f"   Prediction: {result['prediction']}")
-        print(f"   Confidence: {result['confidence']:.2%}")
+        logger.info("✅ Inference completed")
+        logger.info("   Prediction: %s", result['prediction'])
+        logger.info("   Confidence: %.2f%%", result['confidence'] * 100)
 
         return await _create_diagnosis_response(
             file_reference=dat_file.filename,
@@ -558,16 +554,13 @@ async def diagnose_ecg_dat_files(
         # 重新抛出HTTP异常
         raise
     except Exception as e:
-        print(f"❌ .dat diagnosis failed: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("❌ .dat diagnosis failed: %s", str(e))
         raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
     finally:
         # 清理整个临时目录
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
-            print(f"🧹 Cleaned up temp directory: {temp_dir}")
+            logger.debug("🧹 Cleaned up temp directory: %s", temp_dir)
 
 
 @router.get("/history", deprecated=True)

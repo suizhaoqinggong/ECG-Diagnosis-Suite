@@ -3,6 +3,7 @@ Conduction Disorder Detection Service
 
 专门用于识别传导障碍的诊断服务
 """
+import logging
 import torch
 import torch.nn.functional as F
 import numpy as np
@@ -12,6 +13,8 @@ import cv2
 
 from .resnet1d_model import ResNet1DBaseline, PTBXL_SUPERCLASSES_CN as PTBXL_SUPERCLASSES
 from .ecg_image_converter import ECGImageToSignal, create_dummy_ecg_signal
+
+logger = logging.getLogger(__name__)
 
 
 class ConductionDisorderDetector:
@@ -50,13 +53,13 @@ class ConductionDisorderDetector:
             num_leads=12
         )
 
-        print("✅ Conduction Disorder Detector initialized")
-        print(f"   Device: {self.device}")
-        print(f"   Target class: {PTBXL_SUPERCLASSES[self.class_index]}")
+        logger.info("✅ Conduction Disorder Detector initialized")
+        logger.info("   Device: %s", self.device)
+        logger.info("   Target class: %s", PTBXL_SUPERCLASSES[self.class_index])
 
     def _load_weights(self, model_path: str):
         """加载模型权重"""
-        print(f"Loading weights from {model_path}...")
+        logger.info("Loading weights from %s...", model_path)
         checkpoint = torch.load(model_path, map_location=self.device)
 
         # 处理不同的checkpoint格式
@@ -77,9 +80,9 @@ class ConductionDisorderDetector:
 
         try:
             self.model.load_state_dict(new_state_dict, strict=False)
-            print("✅ Weights loaded successfully")
+            logger.info("✅ Weights loaded successfully")
         except Exception as e:
-            print(f"⚠️  Partial weights loaded: {e}")
+            logger.warning("⚠️  Partial weights loaded: %s", e)
 
     def detect_from_image(self, image: np.ndarray) -> Dict:
         """
@@ -220,7 +223,7 @@ class ConductionDisorderDetector:
 
     def test_detector(self):
         """测试检测器"""
-        print("\n🧪 Testing Conduction Disorder Detector...")
+        logger.info("🧪 Testing Conduction Disorder Detector...")
 
         # 创建测试信号
         test_signal = create_dummy_ecg_signal(
@@ -231,16 +234,16 @@ class ConductionDisorderDetector:
         # 检测
         result = self.detect_from_signal(test_signal.squeeze(0).numpy())
 
-        print("\n📊 Detection Result:")
-        print(f"   Prediction: {result['prediction']}")
-        print(f"   Is Conduction Disorder: {result['is_conduction_disorder']}")
-        print(f"   CD Probability: {result['conduction_disorder_probability']:.2%}")
-        print(f"   Risk Level: {result['risk_level']}")
-        print(f"   Description: {result['description']}")
+        logger.info("📊 Detection Result:")
+        logger.info("   Prediction: %s", result['prediction'])
+        logger.info("   Is Conduction Disorder: %s", result['is_conduction_disorder'])
+        logger.info("   CD Probability: %.2f%%", result['conduction_disorder_probability'] * 100)
+        logger.info("   Risk Level: %s", result['risk_level'])
+        logger.info("   Description: %s", result['description'])
 
-        print("\n   All Probabilities:")
+        logger.info("   All Probabilities:")
         for cls, prob in result['all_probabilities'].items():
-            print(f"     {cls}: {prob:.2%}")
+            logger.info("     %s: %.2f%%", cls, prob * 100)
 
         return result
 

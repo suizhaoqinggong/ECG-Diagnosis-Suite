@@ -3,11 +3,14 @@ ECG Data Loader for PTB-XL format
 
 Handles loading and preprocessing of .dat ECG files with accompanying .hea headers.
 """
+import logging
 import os
 import numpy as np
 from typing import Tuple, Optional
 import wfdb
 from scipy.signal import resample
+
+logger = logging.getLogger(__name__)
 
 
 class ECGDataLoader:
@@ -78,10 +81,10 @@ class ECGDataLoader:
                 'units': record.units if hasattr(record, 'units') else None,
             }
 
-            print(f"📊 Loaded ECG data from {os.path.basename(dat_path)}")
-            print(f"   Original shape: {signals.shape}")
-            print(f"   Sample rate: {metadata['fs']} Hz")
-            print(f"   Leads: {metadata['lead_names']}")
+            logger.info("📊 Loaded ECG data from %s", os.path.basename(dat_path))
+            logger.info("   Original shape: %s", signals.shape)
+            logger.info("   Sample rate: %s Hz", metadata['fs'])
+            logger.info("   Leads: %s", metadata['lead_names'])
 
             # 预处理信号
             signals = self._preprocess_signal(signals, metadata['fs'])
@@ -111,15 +114,15 @@ class ECGDataLoader:
             # 如果导联数不足，用零填充
             padding = np.zeros((signals.shape[0], self.target_leads - signals.shape[1]))
             signals = np.concatenate([signals, padding], axis=1)
-            print(f"   ⚠️  Padded to {self.target_leads} leads with zeros")
+            logger.warning("   ⚠️  Padded to %d leads with zeros", self.target_leads)
         elif signals.shape[1] > self.target_leads:
             # 如果导联数过多，只取前12个
             signals = signals[:, :self.target_leads]
-            print(f"   ℹ️  Truncated to {self.target_leads} leads")
+            logger.info("   ℹ️  Truncated to %d leads", self.target_leads)
 
         # 2. 重采样到目标长度
         if signals.shape[0] != self.target_length:
-            print(f"   🔄 Resampling from {signals.shape[0]} to {self.target_length} samples")
+            logger.info("   🔄 Resampling from %d to %d samples", signals.shape[0], self.target_length)
             signals = resample(signals, self.target_length, axis=0)
 
         # 3. 转置为 (leads, samples) 格式
