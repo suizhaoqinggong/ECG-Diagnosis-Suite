@@ -15,7 +15,8 @@ uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Run backend tests
-pytest -q tests
+cd ..
+./backend/.venv/bin/python -m pytest -q tests backend/tests
 ```
 
 If `backend/.env` is not configured, the app falls back to local SQLite.
@@ -26,11 +27,6 @@ For MySQL, copy `backend/.env.example` and set `DATABASE_URL`.
 After starting the server, visit:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
-
-## Manual Checks
-
-Legacy ad hoc model/debug scripts were moved to
-`scripts/manual_checks/` so they do not break automated pytest runs.
 
 ## Project Structure
 

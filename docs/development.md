@@ -53,24 +53,12 @@ npm run dev
 
 ```bash
 # Backend
-cd backend
-pytest -q tests
+./backend/.venv/bin/python -m pytest -q tests backend/tests
 
 # Frontend
 cd frontend
 npm test -- --run
 ```
-
-### 手工冒烟检查
-
-历史上的模型联调脚本已移动到 `scripts/manual_checks/`，例如：
-
-```bash
-python scripts/manual_checks/check_cardioformer_integration.py
-python scripts/manual_checks/check_upload_fix.py /path/to/record.dat /path/to/record.hea
-```
-
-这些脚本依赖本地模型文件或运行中的后端，不属于稳定 CI 覆盖。
 
 ## 常用环境变量
 

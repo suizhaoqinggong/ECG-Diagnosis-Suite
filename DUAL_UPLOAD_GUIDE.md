@@ -31,10 +31,7 @@
 ### 方法3：命令行测试（开发用）
 
 ```bash
-# 使用测试脚本
-./test_dual_upload.sh record.dat record.hea
-
-# 或直接使用curl
+# 直接使用 curl
 curl -X POST http://127.0.0.1:8000/api/diagnose-dat \
   -F "files=@record.dat" \
   -F "files=@record.hea"
@@ -244,6 +241,6 @@ data/
 
 ## 📚 相关文档
 
-- [P1完成报告](./P1_COMPLETION_REPORT.md)
-- [集成报告](./INTEGRATION_REPORT.md)
+- [API 文档](/Users/azure/ECG-Diagnosis-Suite/docs/api.md)
+- [开发指南](/Users/azure/ECG-Diagnosis-Suite/docs/development.md)
 - [API文档](http://localhost:8000/docs)

@@ -13,8 +13,7 @@
 ### 后端
 
 ```bash
-cd backend
-pytest -q tests
+./backend/.venv/bin/python -m pytest -q tests backend/tests
 ```
 
 ### 前端
@@ -24,11 +23,4 @@ cd frontend
 npm test -- --run
 ```
 
-## 手工检查
-
-历史上的模型联调脚本已经移动到 `scripts/manual_checks/`，不再作为
-`pytest` 自动发现的一部分。
-
-```bash
-python scripts/manual_checks/check_cardioformer_integration.py
-```
+仓库当前不再保留手工 smoke-check 脚本，日常验证以自动化测试为准。
