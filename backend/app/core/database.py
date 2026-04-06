@@ -2,6 +2,7 @@
 Database configuration and session management
 """
 import logging
+import urllib.parse
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -42,6 +43,18 @@ AsyncSessionLocal = sessionmaker(
 )
 
 
+def _mask_url_password(url: str) -> str:
+    """Replace the password in a database URL with *** for safe logging."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.password:
+        masked = parsed._replace(
+            netloc=f"{parsed.username}:***@{parsed.hostname}"
+            + (f":{parsed.port}" if parsed.port else "")
+        )
+        return urllib.parse.urlunparse(masked)
+    return url
+
+
 async def init_db():
     """初始化数据库"""
     Base = _get_base()
@@ -55,12 +68,12 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
     database_status.ready = True
     database_status.error = None
-    logger.info("Database initialized: %s", settings.DATABASE_URL)
+    logger.info("Database initialized: %s", _mask_url_password(settings.DATABASE_URL))
 
 
 def mark_db_unavailable(error: Exception) -> None:
     database_status.ready = False
-    database_status.error = str(error)
+    database_status.error = "database unavailable"
 
 
 def get_database_status() -> DatabaseStatus:

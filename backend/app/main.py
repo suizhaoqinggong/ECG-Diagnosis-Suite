@@ -10,7 +10,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.core.config import settings
 from app.core.database import get_database_status, init_db, mark_db_unavailable
-from app.api import auth, chat, diagnosis, conduction_disorder
+from app.api import auth, chat, diagnosis
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,6 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(diagnosis.router, prefix="/api", tags=["diagnosis"])
-app.include_router(conduction_disorder.router, prefix="/api", tags=["conduction-disorder"])
 
 
 @app.get("/")

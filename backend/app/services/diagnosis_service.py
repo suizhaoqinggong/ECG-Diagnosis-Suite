@@ -255,14 +255,16 @@ class DiagnosisService:
                 image_array = decoded.image_rgb
                 t_decode = time.perf_counter() - t0
             except ImageDecodeError as e:
+                logger.warning("Image decode error: %s", str(e))
                 raise HTTPException(
                     status_code=400,
-                    detail=f"图像文件无效或损坏: {str(e)}",
+                    detail="图像文件无效或损坏",
                 )
             except ImageProcessingError as e:
+                logger.warning("Image processing error: %s", str(e))
                 raise HTTPException(
                     status_code=500,
-                    detail=f"图像处理失败: {str(e)}",
+                    detail="图像处理失败",
                 )
 
             logger.info("📸 Processing image: %s", file.filename)
@@ -385,7 +387,7 @@ class DiagnosisService:
             raise
         except Exception as e:
             logger.exception("❌ Image diagnosis failed: %s", str(e))
-            raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
+            raise HTTPException(status_code=500, detail="诊断失败")
         finally:
             file_path.unlink(missing_ok=True)
 
@@ -407,9 +409,10 @@ class DiagnosisService:
             signal_data, metadata = loader.load_dat_file(str(dat_path))
             t_load = time.perf_counter() - t0
         except FileNotFoundError as e:
+            logger.warning("Missing companion file: %s", str(e))
             raise HTTPException(
                 status_code=400,
-                detail=f"缺少配套文件：{str(e)}。.dat文件需要同名的.hea头文件。",
+                detail="缺少配套文件。.dat文件需要同名的.hea头文件。",
             )
 
         # Validate signal format
@@ -495,7 +498,7 @@ class DiagnosisService:
             raise
         except Exception as e:
             logger.exception("❌ .dat diagnosis failed: %s", str(e))
-            raise HTTPException(status_code=500, detail=f"诊断失败: {str(e)}")
+            raise HTTPException(status_code=500, detail="诊断失败")
         finally:
             if temp_dir.exists():
                 shutil.rmtree(temp_dir, ignore_errors=True)

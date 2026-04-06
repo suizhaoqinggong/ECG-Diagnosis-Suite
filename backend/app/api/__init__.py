@@ -1,6 +1,6 @@
 """
 API package
 """
-from app.api import conduction_disorder, diagnosis
+from app.api import diagnosis
 
-__all__ = ["diagnosis", "conduction_disorder"]
+__all__ = ["diagnosis"]
