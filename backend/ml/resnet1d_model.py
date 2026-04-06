@@ -6,10 +6,13 @@ Adapted for ECG image diagnosis system
 """
 from __future__ import annotations
 
+import logging
 from typing import cast
 
 import torch
 from torch import Tensor, nn
+
+logger = logging.getLogger(__name__)
 
 
 class ResidualBlock1D(nn.Module):
@@ -255,7 +258,7 @@ def create_resnet1d_model(
     )
 
     if pretrained and checkpoint_path:
-        print(f"Loading weights from {checkpoint_path}")
+        logger.info("Loading ResNet1D weights from %s", checkpoint_path)
         checkpoint = torch.load(checkpoint_path, map_location='cpu')
 
         # Handle different checkpoint formats
@@ -275,7 +278,7 @@ def create_resnet1d_model(
                 new_state_dict[k] = v
 
         model.load_state_dict(new_state_dict, strict=False)
-        print("✅ Weights loaded successfully")
+        logger.info("ResNet1D weights loaded successfully")
 
     return model
 
@@ -292,6 +295,6 @@ if __name__ == "__main__":
     x = torch.randn(2, 12, 1000)
     output = model(x)
 
-    print(f"Input shape: {x.shape}")
-    print(f"Output shape: {output.shape}")
-    print(f"Number of parameters: {sum(p.numel() for p in model.parameters()):,}")
+    logger.info("Input shape: %s", x.shape)
+    logger.info("Output shape: %s", output.shape)
+    logger.info("Number of parameters: %s", f"{sum(p.numel() for p in model.parameters()):,}")

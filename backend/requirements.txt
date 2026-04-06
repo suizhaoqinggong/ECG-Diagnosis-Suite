@@ -36,6 +36,7 @@ black==24.1.1
 isort==5.13.2
 pytest==7.4.4
 pytest-asyncio==0.23.4
+alembic==1.13.1
 
 # Auth
 python-jose[cryptography]==3.5.0

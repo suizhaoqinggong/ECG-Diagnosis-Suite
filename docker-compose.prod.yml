@@ -37,6 +37,7 @@ services:
       dockerfile: Dockerfile
     container_name: ecg-backend
     environment:
+      ENVIRONMENT: ${BACKEND_ENVIRONMENT:-production}
       DEBUG: ${BACKEND_DEBUG:-False}
       SECRET_KEY: ${BACKEND_SECRET_KEY}
       API_DOCS_ENABLED: ${BACKEND_API_DOCS_ENABLED:-False}

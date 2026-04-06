@@ -29,6 +29,7 @@ from ml.image_decoder import safe_decode_image
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 
 
 def _get_diagnosis_service() -> DiagnosisService:
@@ -79,7 +80,7 @@ async def diagnose_ecg(
             status_code=400,
             detail="单个 .dat 文件无法独立诊断，请使用 /api/diagnose-dat 同时上传同名的 .dat 和 .hea 文件。",
         )
-    elif file.content_type and file.content_type.startswith("image/"):
+    elif safe_name.lower().endswith(IMAGE_EXTENSIONS):
         service = _get_diagnosis_service()
         return await service.diagnose_image(file, safe_name, user_id=user_id)
     else:

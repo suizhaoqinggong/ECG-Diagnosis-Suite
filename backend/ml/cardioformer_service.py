@@ -281,11 +281,11 @@ if __name__ == "__main__":
 
     # 测试虚拟信号
     result = service.test_with_dummy_signal()
-    print("\n📊 Test Result:")
-    print(f"Prediction: {result['prediction']}")
-    print(f"Confidence: {result['confidence']:.2%}")
+    logger.info("Test Result:")
+    logger.info("Prediction: %s", result["prediction"])
+    logger.info("Confidence: %.2f%%", result["confidence"] * 100)
 
     if 'top3_predictions' in result:
-        print("\nTop-3 Predictions:")
+        logger.info("Top-3 Predictions:")
         for i, pred in enumerate(result['top3_predictions'], 1):
-            print(f"  {i}. {pred['class']}: {pred['probability']:.2%}")
+            logger.info("%s. %s: %.2f%%", i, pred["class"], pred["probability"] * 100)

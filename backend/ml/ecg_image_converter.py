@@ -1001,8 +1001,8 @@ if __name__ == "__main__":
 
     # Convert
     signal_tensor = converter(dummy_image)
-    print(f"Signal tensor shape: {signal_tensor.shape}")
+    logger.info("Signal tensor shape: %s", signal_tensor.shape)
 
     # Create dummy signal
     dummy_signal = create_dummy_ecg_signal()
-    print(f"Dummy signal shape: {dummy_signal.shape}")
+    logger.info("Dummy signal shape: %s", dummy_signal.shape)

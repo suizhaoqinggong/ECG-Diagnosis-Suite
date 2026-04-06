@@ -5,12 +5,19 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.auth_dependencies import get_current_user
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.core.rate_limit import (
+    check_delete_account_limit,
+    check_login_limit,
+    check_refresh_ip_limit,
+    check_refresh_user_limit,
+    check_register_limit,
+)
 from app.core.security import (
     create_access_token,
     generate_refresh_token,
@@ -153,6 +160,7 @@ async def register(
 ) -> AuthResponse:
     """Register a new user."""
     _validate_origin(request)
+    await check_register_limit(request, data.email)
 
     async with AsyncSessionLocal() as session:
         # Check if email exists
@@ -197,6 +205,7 @@ async def login(
 ) -> AuthResponse:
     """Login existing user."""
     _validate_origin(request)
+    await check_login_limit(request, data.email)
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -232,6 +241,7 @@ async def refresh(
 ) -> AuthResponse:
     """Refresh access token using refresh token cookie."""
     _validate_origin(request)
+    await check_refresh_ip_limit(request)
 
     if not rt:
         raise HTTPException(
@@ -240,6 +250,7 @@ async def refresh(
         )
 
     token_hash = hashlib.sha256(rt.encode()).hexdigest()
+    now = datetime.now(timezone.utc)
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(
@@ -249,24 +260,41 @@ async def refresh(
         )
         token = result.scalar_one_or_none()
 
-        if not token or token.expires_at < datetime.now(timezone.utc):
+        if not token or token.expires_at < now:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired refresh token",
             )
 
+        await check_refresh_user_limit(token.user_id)
+
         # Check for replay attack
         if token.revoked_at:
             # Revoke entire family
             await session.execute(
-                RefreshToken.__table__.update()
+                update(RefreshToken)
                 .where(RefreshToken.family_id == token.family_id)
-                .values(revoked_at=datetime.now(timezone.utc))
+                .values(revoked_at=now)
             )
             await session.commit()
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token reuse detected",
+            )
+
+        revoke_result = await session.execute(
+            update(RefreshToken)
+            .where(RefreshToken.id == token.id)
+            .where(RefreshToken.revoked_at.is_(None))
+            .where(RefreshToken.expires_at >= now)
+            .values(revoked_at=now)
+        )
+
+        if revoke_result.rowcount != 1:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token",
             )
 
         # Rotate token
@@ -284,7 +312,7 @@ async def refresh(
 
         # Mark old token as revoked
         token.replaced_by_id = new_token.id
-        token.revoked_at = datetime.now(timezone.utc)
+        token.revoked_at = now
         await session.commit()
 
         _set_refresh_cookie(response, new_token_value)
@@ -370,6 +398,7 @@ async def delete_account(
 ) -> dict[str, str]:
     """Delete user account and all associated data."""
     _validate_origin(request)
+    await check_delete_account_limit(current_user.id)
 
     # Verify password before allowing account deletion
     if not verify_password(data.password, current_user.hashed_password):

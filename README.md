@@ -199,7 +199,8 @@ Primary endpoints:
 
 - `POST /api/diagnose`
 - `POST /api/diagnose-dat`
-- `GET /api/history`
+- `GET /api/chat/sessions`
+- `POST /api/chat/sessions`
 - `POST /api/detect/conduction-disorder`
 - `GET /health`
 - `GET /docs`
@@ -209,9 +210,9 @@ For request/response details, see [docs/api.md](/Users/azure/ECG-Diagnosis-Suite
 ## Notes and Limitations
 
 - This project is for research and engineering use, not clinical diagnosis.
-- `GET /api/history` is deprecated, requires auth, and is kept only for compatibility.
+- Conversation history is managed through `/api/chat/*`; the legacy `/api/history` path has been removed from the backend.
 - The frontend PDF export button is still not wired to a backend endpoint.
-- Manual smoke-check scripts now live in `scripts/manual_checks/` and are not part of the automated test suite.
+- Automated verification lives in `tests/`, `backend/tests/`, and `frontend/src/__tests__/`.
 
 ## License
 

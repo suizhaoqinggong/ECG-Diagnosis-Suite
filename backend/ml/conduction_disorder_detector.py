@@ -268,4 +268,4 @@ if __name__ == "__main__":
     detector = create_cd_detector()
     result = detector.test_detector()
 
-    print("\n✅ Conduction Disorder Detector is ready!")
+    logger.info("Conduction Disorder Detector is ready: %s", result)

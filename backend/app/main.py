@@ -11,6 +11,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from app.core.config import settings
 from app.core.database import get_database_status, init_db, mark_db_unavailable
 from app.api import auth, chat, diagnosis
+from app.services.diagnosis_service import get_model_service
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +33,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 async def lifespan(_: FastAPI):
     settings.ensure_runtime_dirs()
     try:
+        if settings.is_production:
+            get_model_service()
         await init_db()
     except Exception as exc:
         mark_db_unavailable(exc)
-        logger.warning("Database initialization skipped: %s", exc)
+        if settings.is_production:
+            logger.exception("Startup failed in production mode")
+            raise
+        logger.warning("Database initialization skipped")
     yield
 
 

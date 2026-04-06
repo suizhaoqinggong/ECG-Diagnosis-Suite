@@ -227,17 +227,17 @@ def create_test_ecg_signal(
 
 if __name__ == "__main__":
     # 测试代码
-    print("Testing ECGDataLoader...")
+    logger.info("Testing ECGDataLoader...")
 
     # 创建测试信号
     test_signal = create_test_ecg_signal()
-    print(f"\n✅ Created test signal: {test_signal.shape}")
+    logger.info("Created test signal: %s", test_signal.shape)
 
     # 验证信号
     loader = ECGDataLoader()
     is_valid = loader.validate_signal(test_signal)
-    print(f"   Valid: {is_valid}")
+    logger.info("Valid: %s", is_valid)
 
-    print("\n💡 To test with real .dat file:")
-    print("   loader = ECGDataLoader()")
-    print("   signals, metadata = loader.load_dat_file('path/to/record.dat')")
+    logger.info("To test with a real .dat file:")
+    logger.info("loader = ECGDataLoader()")
+    logger.info("signals, metadata = loader.load_dat_file('path/to/record.dat')")

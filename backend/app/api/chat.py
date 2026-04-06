@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
@@ -7,11 +8,32 @@ from sqlalchemy import select
 
 from app.core.auth_dependencies import get_current_user
 from app.core.database import AsyncSessionLocal
+from app.core.rate_limit import check_chat_write_limit
 from app.models.chat import ChatMessage, ChatSession
 from app.models.enums import MessageRole, MessageStatus, MessageType
 from app.models.user import User
 
 router = APIRouter(prefix="/chat", tags=["chat"])
+
+
+def _parse_cursor(cursor: str) -> tuple[datetime, str]:
+    parts = cursor.split(",")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid cursor",
+        )
+
+    try:
+        cursor_dt = datetime.fromisoformat(parts[0])
+        UUID(parts[1])
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid cursor",
+        )
+
+    return cursor_dt, parts[1]
 
 
 class SessionCreate(BaseModel):
@@ -85,6 +107,8 @@ async def create_session(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> ChatSession:
     """Create a new chat session."""
+    await check_chat_write_limit(current_user.id, "create-session")
+
     async with AsyncSessionLocal() as session:
         chat_session = ChatSession(
             id=data.id,
@@ -194,14 +218,11 @@ async def list_messages(
         query = select(ChatMessage).where(ChatMessage.session_id == session_id)
 
         if cursor:
-            parts = cursor.split(",")
-            if len(parts) == 2:
-                cursor_dt = datetime.fromisoformat(parts[0])
-                cursor_id = parts[1]
-                query = query.where(
-                    (ChatMessage.created_at > cursor_dt)
-                    | ((ChatMessage.created_at == cursor_dt) & (ChatMessage.id > cursor_id))
-                )
+            cursor_dt, cursor_id = _parse_cursor(cursor)
+            query = query.where(
+                (ChatMessage.created_at > cursor_dt)
+                | ((ChatMessage.created_at == cursor_dt) & (ChatMessage.id > cursor_id))
+            )
 
         query = query.order_by(ChatMessage.created_at, ChatMessage.id).limit(limit)
         result = await session.execute(query)
@@ -219,6 +240,8 @@ async def create_messages(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> list[ChatMessage]:
     """Create messages atomically (batch insert with idempotency)."""
+    await check_chat_write_limit(current_user.id, "create-messages")
+
     async with AsyncSessionLocal() as session:
         # Verify session ownership
         result = await session.execute(
@@ -232,16 +255,34 @@ async def create_messages(
 
         # Check for existing message IDs (idempotency)
         message_ids = [m.id for m in data.messages]
+        unique_message_ids = set(message_ids)
+        if len(unique_message_ids) != len(message_ids):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Duplicate message IDs in request",
+            )
+
         result = await session.execute(
-            select(ChatMessage.id).where(ChatMessage.id.in_(message_ids))
+            select(ChatMessage.id, ChatMessage.session_id).where(ChatMessage.id.in_(message_ids))
         )
-        existing_ids = {row[0] for row in result.all()}
+        existing_rows = result.all()
+        existing_ids = {row[0] for row in existing_rows}
+        foreign_session_ids = {
+            row[0] for row in existing_rows if row[1] != session_id
+        }
+
+        if foreign_session_ids:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Message IDs already belong to another session",
+            )
 
         if existing_ids:
             if len(existing_ids) == len(message_ids):
                 # All exist - return them as success (idempotent)
                 result = await session.execute(
                     select(ChatMessage)
+                    .where(ChatMessage.session_id == session_id)
                     .where(ChatMessage.id.in_(message_ids))
                     .order_by(ChatMessage.created_at, ChatMessage.id)
                 )

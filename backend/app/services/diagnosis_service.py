@@ -130,6 +130,11 @@ def get_model_service():
         checkpoint_path = settings.get_model_checkpoint_path()
 
         if checkpoint_path is None:
+            if settings.is_production:
+                raise RuntimeError(
+                    "Model checkpoint not found. "
+                    "Set MODEL_CHECKPOINT_PATH or mount models/checkpoints/best.ckpt."
+                )
             logger.warning("⚠️  No model checkpoint found in configured locations.")
             logger.warning("   Falling back to random initialization (for testing only).")
         else:

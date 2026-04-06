@@ -55,8 +55,9 @@ apiClient.interceptors.response.use(
         .then((response) => {
           setAuth(response.user, response.access_token)
         })
-        .catch(() => {
+        .catch((refreshError) => {
           clearAuth()
+          throw refreshError
         })
         .finally(() => {
           isRefreshing = false

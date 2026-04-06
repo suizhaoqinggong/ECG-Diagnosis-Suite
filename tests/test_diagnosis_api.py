@@ -222,6 +222,21 @@ class TestDiagnoseImage:
             assert isinstance(data["disclaimer"], str)
             assert len(data["disclaimer"]) > 0
 
+    def test_image_extension_is_accepted_even_with_generic_mime_type(self, client):
+        """Valid image extension should not depend on client MIME sniffing."""
+        with (
+            patch("ml.signal_quality.analyze_signal_quality", return_value=_make_quality_report(collapsed=False)),
+            patch("app.api.diagnosis.get_model_service") as mock_get_service,
+            patch("app.api.diagnosis.safe_decode_image", return_value=_make_decoded_image()),
+        ):
+            _setup_mock_service(mock_get_service, _model_result())
+
+            files = {"file": ("ecg.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 100, "application/octet-stream")}
+            response = client.post("/api/diagnose", files=files)
+
+            assert response.status_code == 200
+            assert response.json()["prediction"] == "正常"
+
     def test_symptom_database_enrichment(self, client):
         """Response includes severity, icd_code, description from SYMPTOM_DATABASE."""
         with (

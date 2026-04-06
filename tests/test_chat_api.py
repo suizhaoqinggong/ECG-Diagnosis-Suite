@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from app.main import app
 from app.core.auth_dependencies import get_current_user
+from app.core.rate_limit import rate_limiter
 
 
 def _make_mock_session():
@@ -49,6 +50,13 @@ def auth_client():
     client = TestClient(app, raise_server_exceptions=False)
     yield client
     app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    rate_limiter.reset()
+    yield
+    rate_limiter.reset()
 
 
 def _mock_session_orm(session_id=VALID_UUID, title="Test", user_id=1):
@@ -341,6 +349,20 @@ class TestListMessages:
         assert len(data) == 1
         assert data[0]["content"] == "Hello world"
 
+    def test_invalid_cursor_returns_400(self, auth_client):
+        mock_session = _make_mock_session()
+        mock_session.execute = AsyncMock(
+            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=_mock_session_orm()))
+        )
+
+        with patch("app.api.chat.AsyncSessionLocal", return_value=mock_session):
+            response = auth_client.get(
+                f"/api/chat/sessions/{VALID_UUID}/messages?cursor=not-a-timestamp,{VALID_UUID}"
+            )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == "Invalid cursor"
+
 
 # ===========================================================================
 # Create Messages (batch + idempotency)
@@ -394,7 +416,7 @@ class TestCreateMessages:
         mock_session.execute = AsyncMock(
             side_effect=[
                 MagicMock(scalar_one_or_none=MagicMock(return_value=orm)),
-                MagicMock(all=MagicMock(return_value=[(VALID_UUID,)])),
+                MagicMock(all=MagicMock(return_value=[(VALID_UUID, VALID_UUID)])),
                 MagicMock(scalars=MagicMock(return_value=scalars_mock)),
             ]
         )
@@ -416,7 +438,7 @@ class TestCreateMessages:
         mock_session.execute = AsyncMock(
             side_effect=[
                 MagicMock(scalar_one_or_none=MagicMock(return_value=orm)),
-                MagicMock(all=MagicMock(return_value=[(VALID_UUID,)])),
+                MagicMock(all=MagicMock(return_value=[(VALID_UUID, VALID_UUID)])),
             ]
         )
 
@@ -432,6 +454,26 @@ class TestCreateMessages:
             )
         assert response.status_code == 409
         assert "duplicate" in response.json()["detail"].lower()
+
+    def test_rejects_message_ids_owned_by_another_session(self, auth_client):
+        mock_session = _make_mock_session()
+        orm = _mock_session_orm()
+
+        mock_session.execute = AsyncMock(
+            side_effect=[
+                MagicMock(scalar_one_or_none=MagicMock(return_value=orm)),
+                MagicMock(all=MagicMock(return_value=[(VALID_UUID, "another-session-id")])),
+            ]
+        )
+
+        with patch("app.api.chat.AsyncSessionLocal", return_value=mock_session):
+            response = auth_client.post(
+                f"/api/chat/sessions/{VALID_UUID}/messages",
+                json={"messages": [self._make_message_payload()]},
+            )
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Message IDs already belong to another session"
 
     def test_returns_404_for_nonexistent_session(self, auth_client):
         mock_session = _make_mock_session()

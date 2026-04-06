@@ -11,7 +11,7 @@ against the current code and PASS after the hardening changes.
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
@@ -323,10 +323,18 @@ class TestDatabaseStartupSanitization:
                 "mysql+aiomysql://admin:hunter2@db:3306/ecg"
             )
             mock_settings.DEBUG = False
+            mock_settings.is_production = False
 
             # Mock the DB init so it doesn't actually connect
             mock_base = MagicMock()
             mock_get_base.return_value = mock_base
+
+            # Mock engine.begin() async context manager
+            mock_conn = AsyncMock()
+            mock_conn.run_sync = AsyncMock(return_value={"alembic_version"})
+            mock_engine.begin = MagicMock()
+            mock_engine.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
+            mock_engine.begin.return_value.__aexit__ = AsyncMock(return_value=None)
 
             import asyncio
             from app.core.database import init_db

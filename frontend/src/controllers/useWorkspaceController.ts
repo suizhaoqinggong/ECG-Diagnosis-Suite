@@ -29,10 +29,86 @@ export {
   buildSessionFromRemote,
 } from './messageMappers'
 
-import { createId, createEmptySession, workspaceReducer, createInitialState } from './workspaceReducer'
+import {
+  createId,
+  createEmptySession,
+  workspaceReducer,
+  createInitialState,
+  detectCategory,
+  validateAttachments,
+} from './workspaceReducer'
 import { mapLocalMessageToRemote, fetchAllSessionMessages, buildSessionFromRemote } from './messageMappers'
 
 const storage = new StorageManager()
+
+function getErrorStatusCode(error: unknown): number | null {
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    typeof (error as { response?: { status?: unknown } }).response?.status === 'number'
+  ) {
+    return (error as { response: { status: number } }).response.status
+  }
+  return null
+}
+
+function buildPendingAttachments(files: File[]): PendingAttachment[] {
+  return files.flatMap((file) => {
+    const category = detectCategory(file)
+    if (!category) return []
+
+    const id = createId()
+    return [{
+      id,
+      file,
+      summary: {
+        id,
+        name: file.name,
+        size: file.size,
+        category,
+      },
+    }]
+  })
+}
+
+function hasMeaningfulSession(session: ChatSession): boolean {
+  return session.messages.some((message) => message.type !== 'intro')
+}
+
+function getLocalMigrationSource(
+  sessions: ChatSession[],
+  activeSessionId: string,
+): { sessions: ChatSession[]; activeSessionId: string } | null {
+  const currentSessions = sessions.filter(hasMeaningfulSession)
+  if (currentSessions.length > 0) {
+    return {
+      sessions: currentSessions,
+      activeSessionId: currentSessions.some((session) => session.id === activeSessionId)
+        ? activeSessionId
+        : currentSessions[0].id,
+    }
+  }
+
+  const persisted = storage.readPersisted()
+  if (
+    persisted &&
+    persisted.persistenceEnabled &&
+    Array.isArray(persisted.sessions)
+  ) {
+    const persistedSessions = (persisted.sessions as ChatSession[]).filter(hasMeaningfulSession)
+    if (persistedSessions.length > 0) {
+      return {
+        sessions: persistedSessions,
+        activeSessionId: persistedSessions.some((session) => session.id === persisted.activeSessionId)
+          ? persisted.activeSessionId
+          : persistedSessions[0].id,
+      }
+    }
+  }
+
+  return null
+}
 
 // ===== Hook =====
 
@@ -42,6 +118,12 @@ export function useWorkspaceController() {
   const lastFilesRef = useRef<File[] | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
   const remoteSessionIdsRef = useRef<Set<string>>(new Set())
+  const hydratedUserIdRef = useRef<number | null>(null)
+  const persistedStateRef = useRef(state.persisted)
+
+  useEffect(() => {
+    persistedStateRef.current = state.persisted
+  }, [state.persisted])
 
   const loadGuestSessions = useCallback(() => {
     const persisted = storage.readPersisted()
@@ -89,15 +171,86 @@ export function useWorkspaceController() {
     }
   }, [])
 
+  const syncSessionToCloud = useCallback(async (session: ChatSession) => {
+    try {
+      await chatApi.createSession(session.id, session.title)
+    } catch (error) {
+      if (getErrorStatusCode(error) !== 409) {
+        throw error
+      }
+      await chatApi.updateSession(session.id, session.title)
+    }
+
+    if (session.messages.length > 0) {
+      await chatApi.createMessages(
+        session.id,
+        session.messages.map(mapLocalMessageToRemote),
+      )
+    }
+
+    remoteSessionIdsRef.current.add(session.id)
+  }, [])
+
   useEffect(() => {
     if (auth.isLoading) return
-    if (auth.user) {
-      void loadRemoteSessions()
+
+    if (auth.user?.id) {
+      if (hydratedUserIdRef.current === auth.user.id) return
+      hydratedUserIdRef.current = auth.user.id
+
+      void (async () => {
+        const migrationSource = getLocalMigrationSource(
+          persistedStateRef.current.sessions,
+          persistedStateRef.current.activeSessionId,
+        )
+
+        if (migrationSource) {
+          const sessionCount = migrationSource.sessions.length
+          const shouldSync = typeof window === 'undefined'
+            ? true
+            : window.confirm(
+              `Found ${sessionCount} local conversation${sessionCount === 1 ? '' : 's'}. Sync to cloud?`,
+            )
+
+          if (shouldSync) {
+            try {
+              for (const session of migrationSource.sessions) {
+                await syncSessionToCloud(session)
+              }
+              storage.clear()
+            } catch (error) {
+              toast.error(`Local history sync failed: ${extractErrorMessage(error)}`)
+              if (!persistedStateRef.current.sessions.some(hasMeaningfulSession)) {
+                dispatch({
+                  type: 'HYDRATE',
+                  sessions: migrationSource.sessions,
+                  activeSessionId: migrationSource.activeSessionId,
+                })
+              }
+              return
+            }
+          } else {
+            storage.clear()
+          }
+        } else {
+          storage.clear()
+        }
+
+        await loadRemoteSessions()
+      })()
       return
     }
+
+    hydratedUserIdRef.current = null
     remoteSessionIdsRef.current = new Set()
     loadGuestSessions()
-  }, [auth.isLoading, auth.user, loadGuestSessions, loadRemoteSessions])
+  }, [
+    auth.isLoading,
+    auth.user?.id,
+    loadGuestSessions,
+    loadRemoteSessions,
+    syncSessionToCloud,
+  ])
 
   useEffect(() => {
     if (auth.user || auth.isLoading) return
@@ -214,10 +367,17 @@ export function useWorkspaceController() {
     }
   }, [state.persisted.persistenceEnabled])
 
-  const submit = useCallback(async () => {
+  const submit = useCallback(async (attachmentOverride?: PendingAttachment[]) => {
     if (!activeSession || isSubmitting) return
-    const hasDraft = state.composer.draft.trim().length > 0
-    const hasAttachments = state.composer.attachments.length > 0
+
+    const attachments = attachmentOverride ?? state.composer.attachments
+    const draft = state.composer.draft.trim()
+    const validationErrors = attachmentOverride
+      ? validateAttachments(attachments)
+      : state.composer.validationErrors
+    const hasDraft = draft.length > 0
+    const hasAttachments = attachments.length > 0
+
     if (!hasDraft && !hasAttachments) {
       toast.error('Add a note or attach an ECG study to continue.')
       return
@@ -229,7 +389,7 @@ export function useWorkspaceController() {
         role: 'user',
         type: 'prompt',
         title: 'Clinical note',
-        content: state.composer.draft.trim(),
+        content: draft,
         createdAt: new Date().toISOString(),
         status: 'completed',
       }
@@ -259,8 +419,8 @@ export function useWorkspaceController() {
       return
     }
 
-    if (state.composer.validationErrors.length > 0) {
-      toast.error(state.composer.validationErrors[0])
+    if (validationErrors.length > 0) {
+      toast.error(validationErrors[0])
       return
     }
 
@@ -268,10 +428,10 @@ export function useWorkspaceController() {
       id: createId(),
       role: 'user',
       type: 'prompt',
-      title: state.composer.attachments.length > 0 ? 'Submitted ECG for review' : 'Clinical note',
-      content: state.composer.draft.trim() || 'Please analyze the attached ECG study.',
+      title: attachments.length > 0 ? 'Submitted ECG for review' : 'Clinical note',
+      content: draft || 'Please analyze the attached ECG study.',
       createdAt: new Date().toISOString(),
-      attachments: state.composer.attachments.map(attachment => attachment.summary),
+      attachments: attachments.map(attachment => attachment.summary),
       status: 'completed',
     }
     dispatch({ type: 'APPEND_MESSAGE', sessionId: activeSession.id, message: userMessage })
@@ -288,7 +448,7 @@ export function useWorkspaceController() {
     dispatch({ type: 'APPEND_MESSAGE', sessionId: activeSession.id, message: pendingMessage })
     dispatch({ type: 'SUBMIT_STARTED', messageId: pendingMessageId })
 
-    lastFilesRef.current = state.composer.attachments.map(attachment => attachment.file)
+    lastFilesRef.current = attachments.map(attachment => attachment.file)
     abortControllerRef.current = new AbortController()
     const currentAbortController = abortControllerRef.current
 
@@ -298,9 +458,9 @@ export function useWorkspaceController() {
         await chatApi.createMessages(activeSession.id, [mapLocalMessageToRemote(userMessage)])
       }
 
-      const imageFile = state.composer.attachments.find(attachment => attachment.summary.category === 'image')?.file
-      const datFile = state.composer.attachments.find(attachment => attachment.summary.category === 'dat')?.file
-      const heaFile = state.composer.attachments.find(attachment => attachment.summary.category === 'hea')?.file
+      const imageFile = attachments.find(attachment => attachment.summary.category === 'image')?.file
+      const datFile = attachments.find(attachment => attachment.summary.category === 'dat')?.file
+      const heaFile = attachments.find(attachment => attachment.summary.category === 'hea')?.file
 
       let result: DiagnosisResultData
       if (imageFile) {
@@ -389,7 +549,7 @@ export function useWorkspaceController() {
 
       toast.error(errorMessage)
     }
-  }, [activeSession, auth.user, ensureRemoteSession, isSubmitting, state.composer])
+  }, [activeSession, auth.user, ensureRemoteSession, isSubmitting, state.composer.attachments, state.composer.draft, state.composer.validationErrors])
 
   const cancelSubmission = useCallback(() => {
     if (abortControllerRef.current) {
@@ -412,9 +572,9 @@ export function useWorkspaceController() {
       toast.error('Please re-select files and try again.')
       return
     }
+    const retryAttachments = buildPendingAttachments(lastFilesRef.current)
     dispatch({ type: 'ADD_FILES', files: lastFilesRef.current })
-    await new Promise(resolve => setTimeout(resolve, 0))
-    await submit()
+    await submit(retryAttachments)
   }, [activeSession, submit])
 
   return {

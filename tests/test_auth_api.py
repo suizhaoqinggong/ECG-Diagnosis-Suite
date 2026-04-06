@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from app.main import app
+from app.core.rate_limit import rate_limiter
 
 
 def _make_mock_session():
@@ -29,6 +30,13 @@ def _make_mock_session():
 @pytest.fixture
 def client():
     return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    rate_limiter.reset()
+    yield
+    rate_limiter.reset()
 
 
 def _mock_user(id=1, email="test@example.com", display_name="Tester", hashed_password="hash"):
@@ -209,7 +217,10 @@ class TestRefresh:
         mock_token = _mock_refresh_token()
         mock_session = _make_mock_session()
         mock_session.execute = AsyncMock(
-            return_value=MagicMock(scalar_one_or_none=MagicMock(return_value=mock_token))
+            side_effect=[
+                MagicMock(scalar_one_or_none=MagicMock(return_value=mock_token)),
+                MagicMock(rowcount=1),
+            ]
         )
         mock_session.add = MagicMock()
         mock_session.flush = AsyncMock()
@@ -220,6 +231,25 @@ class TestRefresh:
                 response = client.post("/api/auth/refresh", cookies={"rt": "valid-token"})
         assert response.status_code == 200
         assert response.json()["access_token"] == "new-access-token"
+
+    @patch("app.api.auth._validate_origin")
+    def test_refresh_rejects_token_when_rotation_already_claimed(self, mock_origin, client):
+        mock_token = _mock_refresh_token()
+        mock_session = _make_mock_session()
+        mock_session.execute = AsyncMock(
+            side_effect=[
+                MagicMock(scalar_one_or_none=MagicMock(return_value=mock_token)),
+                MagicMock(rowcount=0),
+            ]
+        )
+        mock_session.rollback = AsyncMock()
+
+        with patch("app.api.auth.AsyncSessionLocal", return_value=mock_session):
+            response = client.post("/api/auth/refresh", cookies={"rt": "valid-token"})
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid or expired refresh token"
+        mock_session.rollback.assert_awaited()
 
 
 # ===========================================================================

@@ -68,14 +68,13 @@
 
 ## 历史与会话
 
-### `GET /api/history`
-
-兼容性保留接口，已弃用，且需要登录。
-
-推荐改用聊天会话接口：
+当前历史能力统一走聊天会话接口：
 
 - `GET /api/chat/sessions`
 - `POST /api/chat/sessions`
+- `PATCH /api/chat/sessions/{session_id}`
+- `DELETE /api/chat/sessions/{session_id}`
+- `DELETE /api/chat/sessions`
 - `GET /api/chat/sessions/{session_id}/messages`
 - `POST /api/chat/sessions/{session_id}/messages`
 

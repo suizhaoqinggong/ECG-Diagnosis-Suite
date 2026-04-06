@@ -7,6 +7,7 @@ This version: Standalone implementation without framework dependencies
 """
 from __future__ import annotations
 
+import logging
 import math
 import random
 from collections.abc import Sequence
@@ -15,6 +16,8 @@ from typing import cast
 import torch
 import torch.nn.functional as functional
 from torch import Tensor, nn
+
+logger = logging.getLogger(__name__)
 
 
 def parse_int_list(raw: str | Sequence[int], *, name: str) -> tuple[int, ...]:
@@ -655,7 +658,7 @@ def create_cardioformer_model(
             state_dict = checkpoint
 
         model.load_state_dict(state_dict, strict=True)
-        print(f"✅ Loaded checkpoint from {checkpoint_path}")
+        logger.info("Loaded CardioFormer checkpoint from %s", checkpoint_path)
 
     return model
 

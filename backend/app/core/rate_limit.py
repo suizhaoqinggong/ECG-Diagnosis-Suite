@@ -244,6 +244,16 @@ async def check_refresh_user_limit(user_id: int) -> None:
     )
 
 
+async def check_delete_account_limit(user_id: int) -> None:
+    """Rate limit delete-account to prevent online password oracle attacks."""
+    await rate_limiter.check(
+        key=f"auth:delete-account:user:{user_id}",
+        limit=5,
+        window_seconds=60,
+        detail="Too many account deletion attempts. Please try again later.",
+    )
+
+
 async def check_chat_write_limit(user_id: int, action: str) -> None:
     await rate_limiter.check(
         key=f"chat:write:{action}:user:{user_id}",

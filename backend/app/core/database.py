@@ -5,6 +5,7 @@ import logging
 import urllib.parse
 from dataclasses import dataclass
 
+from sqlalchemy import inspect
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -62,10 +63,21 @@ async def init_db():
     import app.models.user  # noqa: F401
     import app.models.refresh_token  # noqa: F401
     import app.models.chat  # noqa: F401
+    import app.models.rate_limit  # noqa: F401
 
     async with engine.begin() as conn:
-        # 创建所有表
-        await conn.run_sync(Base.metadata.create_all)
+        table_names = set(
+            await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names())
+        )
+
+        if "alembic_version" not in table_names:
+            if settings.is_production:
+                raise RuntimeError(
+                    "Database migrations are required in production. "
+                    "Run `alembic upgrade head` before starting the app."
+                )
+
+            await conn.run_sync(Base.metadata.create_all)
     database_status.ready = True
     database_status.error = None
     logger.info("Database initialized: %s", _mask_url_password(settings.DATABASE_URL))
