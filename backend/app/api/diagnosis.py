@@ -8,9 +8,13 @@ and returns responses.
 import logging
 from typing import List
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 
 from app.core.auth_dependencies import get_optional_user
+from app.core.rate_limit import (
+    check_diagnosis_anonymous_limit,
+    check_diagnosis_authenticated_limit,
+)
 from app.core.upload import sanitize_filename, validate_extension
 from app.models.user import User
 from app.services.diagnosis_service import (
@@ -48,6 +52,7 @@ def _get_diagnosis_service() -> DiagnosisService:
 
 @router.post("/diagnose", response_model=DiagnosisResponse)
 async def diagnose_ecg(
+    request: Request,
     file: UploadFile = File(...),
     current_user: User | None = Depends(get_optional_user),
 ):
@@ -58,6 +63,12 @@ async def diagnose_ecg(
     - 图片格式: .png, .jpg, .jpeg
     - ECG数据双文件格式请使用 /api/diagnose-dat
     """
+    # Rate limiting
+    if current_user:
+        await check_diagnosis_authenticated_limit(current_user.id)
+    else:
+        await check_diagnosis_anonymous_limit(request)
+
     user_id = current_user.id if current_user else None
     safe_name = sanitize_filename(file.filename)
     validate_extension(safe_name)
@@ -80,6 +91,7 @@ async def diagnose_ecg(
 
 @router.post("/diagnose-dat", response_model=DiagnosisResponse)
 async def diagnose_ecg_dat_files(
+    request: Request,
     files: List[UploadFile] = File(...),
     current_user: User | None = Depends(get_optional_user),
 ):
@@ -92,6 +104,12 @@ async def diagnose_ecg_dat_files(
 
     两个文件必须文件名相同（只有扩展名不同）
     """
+    # Rate limiting
+    if current_user:
+        await check_diagnosis_authenticated_limit(current_user.id)
+    else:
+        await check_diagnosis_anonymous_limit(request)
+
     user_id = current_user.id if current_user else None
     # 验证文件数量
     if len(files) != 2:
