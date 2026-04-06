@@ -61,6 +61,10 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+class DeleteAccountRequest(BaseModel):
+    password: str
+
+
 class UserResponse(BaseModel):
     id: int
     email: str
@@ -361,10 +365,18 @@ async def change_password(
 async def delete_account(
     request: Request,
     response: Response,
+    data: DeleteAccountRequest,
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> dict[str, str]:
     """Delete user account and all associated data."""
     _validate_origin(request)
+
+    # Verify password before allowing account deletion
+    if not verify_password(data.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid password",
+        )
 
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.id == current_user.id))

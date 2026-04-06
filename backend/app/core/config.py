@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = _DEFAULT_SECRET_KEY
     ENVIRONMENT: str = "development"  # "development" or "production"
     API_DOCS_ENABLED: bool = True
+    RATE_LIMIT_BACKEND: str = "auto"  # "auto", "memory", or "database"
 
     # Server settings
     HOST: str = "0.0.0.0"
@@ -88,6 +89,21 @@ class Settings(BaseSettings):
         return path if path.is_absolute() else self.project_root / path
 
     @property
+    def environment_name(self) -> str:
+        return self.ENVIRONMENT.strip().lower()
+
+    @property
+    def is_production(self) -> bool:
+        return self.environment_name == "production"
+
+    @property
+    def effective_rate_limit_backend(self) -> str:
+        backend = self.RATE_LIMIT_BACKEND.strip().lower()
+        if backend == "auto":
+            return "database" if self.is_production else "memory"
+        return backend
+
+    @property
     def upload_dir_path(self) -> Path:
         return self.resolve_backend_path(self.UPLOAD_DIR)
 
@@ -128,7 +144,7 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _validate_production_settings(self):
-        env = self.ENVIRONMENT.strip().lower()
+        env = self.environment_name
         if env == "production":
             if self.SECRET_KEY == self._DEFAULT_SECRET_KEY:
                 raise ValueError(
@@ -147,6 +163,10 @@ class Settings(BaseSettings):
                     "Using default SECRET_KEY in development mode. "
                     "Set SECRET_KEY environment variable for production."
                 )
+        if self.effective_rate_limit_backend not in {"memory", "database"}:
+            raise ValueError(
+                "RATE_LIMIT_BACKEND must resolve to 'memory' or 'database'."
+            )
         return self
 
     def ensure_runtime_dirs(self) -> None:
