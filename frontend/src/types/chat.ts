@@ -22,6 +22,13 @@ export interface ConversationMessage {
   errorDetail?: string
 }
 
+export interface PerLeadQC {
+  lead_index: number
+  quality: 'good' | 'warn' | 'poor' | 'fail'
+  flatness: number
+  coverage: number
+}
+
 export interface ChatSession {
   id: string
   title: string

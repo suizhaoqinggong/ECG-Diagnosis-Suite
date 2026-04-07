@@ -64,6 +64,26 @@ export default function HomePage() {
     }
   }, [dispatch])
 
+  const handleDraftChange = useCallback(
+    (value: string) => dispatch({ type: 'SET_DRAFT', value }),
+    [dispatch],
+  )
+
+  const handleImageFilesSelected = useCallback(
+    (files: File[] | null) => { if (files) dispatch({ type: 'ADD_FILES', files }) },
+    [dispatch],
+  )
+
+  const handleDataFilesSelected = useCallback(
+    (files: File[] | null) => { if (files) dispatch({ type: 'ADD_FILES', files }) },
+    [dispatch],
+  )
+
+  const handleRemoveFile = useCallback(
+    (id: string) => dispatch({ type: 'REMOVE_FILE', id }),
+    [dispatch],
+  )
+
   if (!activeSession) return null
 
   const hasUserMessages = activeSession.messages.some(m => m.role === 'user')
@@ -164,10 +184,10 @@ export default function HomePage() {
           draft={state.composer.draft}
           attachedFiles={state.composer.attachments.map(a => a.summary)}
           isLoading={isSubmitting}
-          onDraftChange={(value) => dispatch({ type: 'SET_DRAFT', value })}
-          onImageFilesSelected={(files) => { if (files) dispatch({ type: 'ADD_FILES', files }) }}
-          onDataFilesSelected={(files) => { if (files) dispatch({ type: 'ADD_FILES', files }) }}
-          onRemoveFile={(id) => dispatch({ type: 'REMOVE_FILE', id })}
+          onDraftChange={handleDraftChange}
+          onImageFilesSelected={handleImageFilesSelected}
+          onDataFilesSelected={handleDataFilesSelected}
+          onRemoveFile={handleRemoveFile}
           onSubmit={submit}
         />
       </main>

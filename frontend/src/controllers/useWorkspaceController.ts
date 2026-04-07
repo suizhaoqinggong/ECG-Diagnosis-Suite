@@ -120,10 +120,11 @@ export function useWorkspaceController() {
   const remoteSessionIdsRef = useRef<Set<string>>(new Set())
   const hydratedUserIdRef = useRef<number | null>(null)
   const persistedStateRef = useRef(state.persisted)
+  const composerRef = useRef(state.composer)
 
-  useEffect(() => {
-    persistedStateRef.current = state.persisted
-  }, [state.persisted])
+  // Sync refs synchronously (before any event handlers run), not via useEffect
+  persistedStateRef.current = state.persisted
+  composerRef.current = state.composer
 
   const loadGuestSessions = useCallback(() => {
     const persisted = storage.readPersisted()
@@ -370,11 +371,11 @@ export function useWorkspaceController() {
   const submit = useCallback(async (attachmentOverride?: PendingAttachment[]) => {
     if (!activeSession || isSubmitting) return
 
-    const attachments = attachmentOverride ?? state.composer.attachments
-    const draft = state.composer.draft.trim()
+    const attachments = attachmentOverride ?? composerRef.current.attachments
+    const draft = composerRef.current.draft.trim()
     const validationErrors = attachmentOverride
       ? validateAttachments(attachments)
-      : state.composer.validationErrors
+      : composerRef.current.validationErrors
     const hasDraft = draft.length > 0
     const hasAttachments = attachments.length > 0
 
@@ -549,7 +550,7 @@ export function useWorkspaceController() {
 
       toast.error(errorMessage)
     }
-  }, [activeSession, auth.user, ensureRemoteSession, isSubmitting, state.composer.attachments, state.composer.draft, state.composer.validationErrors])
+  }, [activeSession, auth.user, ensureRemoteSession, isSubmitting])
 
   const cancelSubmission = useCallback(() => {
     if (abortControllerRef.current) {

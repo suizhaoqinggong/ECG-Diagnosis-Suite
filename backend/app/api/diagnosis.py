@@ -5,6 +5,7 @@ Thin route layer that validates inputs, delegates to DiagnosisService,
 and returns responses.
 """
 
+import asyncio
 import logging
 from typing import List
 
@@ -31,6 +32,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg")
 
+# Global semaphore to limit concurrent CPU-intensive tasks across all requests.
+# This prevents CPU oversubscription when multiple requests run model inference
+# simultaneously. The limit is shared across all DiagnosisService instances.
+_global_inference_semaphore = asyncio.Semaphore(4)
+
 
 def _get_diagnosis_service() -> DiagnosisService:
     """Build a DiagnosisService wired to the current module-level hooks.
@@ -43,6 +49,7 @@ def _get_diagnosis_service() -> DiagnosisService:
         get_model_service_fn=get_model_service,
         ecg_loader_cls=ECGDataLoader,
         decode_image_fn=safe_decode_image,
+        semaphore=_global_inference_semaphore,
     )
 
 

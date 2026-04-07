@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "ECG Diagnosis Suite"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
+    DB_ECHO: bool = False
     SECRET_KEY: str = _DEFAULT_SECRET_KEY
     ENVIRONMENT: str = "development"  # "development" or "production"
     API_DOCS_ENABLED: bool = True

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import type { ChangeEvent, ClipboardEvent, KeyboardEvent } from 'react'
 import type { AttachedFileSummary } from '../types/chat'
 import { formatFileSize } from '../utils'
@@ -41,7 +42,7 @@ function ArrowIcon() {
   )
 }
 
-export default function ChatComposer({
+const ChatComposer = memo(function ChatComposer({
   draft,
   attachedFiles,
   isLoading,
@@ -181,4 +182,6 @@ export default function ChatComposer({
       </div>
     </div>
   )
-}
+})
+
+export default ChatComposer

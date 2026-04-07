@@ -43,6 +43,9 @@ async def lifespan(_: FastAPI):
             raise
         logger.warning("Database initialization skipped")
     yield
+    # Shutdown: dispose database engine
+    from app.core.database import engine
+    await engine.dispose()
 
 
 app = FastAPI(

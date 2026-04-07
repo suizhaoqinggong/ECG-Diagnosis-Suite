@@ -67,7 +67,7 @@ export async function fetchAllSessionMessages(sessionId: string): Promise<Messag
   const messages: MessageResponse[] = []
   let cursor: string | undefined
 
-  while (true) {
+  for (;;) {
     const page = await chatApi.listMessages(sessionId, cursor, 100)
     messages.push(...page)
     if (page.length < 100) break

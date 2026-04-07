@@ -130,7 +130,8 @@ class TestImageDecoderRejectsInvalidImages:
         huge_image = np.zeros((200, 200, 3), dtype=np.uint8)
         Image.fromarray(huge_image, "RGB").save(img_path)
 
-        with pytest.raises(ImageDecodeError, match="图片像素总数超过限制"):
+        # Pixel limit can be caught either by our custom check or Pillow's DecompressionBomb
+        with pytest.raises(ImageDecodeError, match="图片(像素总数超过限制|存在异常解压风险)"):
             safe_decode_image(
                 str(img_path),
                 max_pixels=10000,  # 200x200=40000 > 10000

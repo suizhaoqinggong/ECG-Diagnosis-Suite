@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { PerLeadQC } from '@/components/QCWarning'
+import type { PerLeadQC } from '@/types/chat'
 
 export interface PredictionProbability {
   class: string

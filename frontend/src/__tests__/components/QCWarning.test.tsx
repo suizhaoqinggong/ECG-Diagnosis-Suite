@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import QCWarning from '@/components/QCWarning'
-import type { PerLeadQC } from '@/components/QCWarning'
+import type { PerLeadQC } from '@/types/chat'
 
 const mockPerLeadQC: PerLeadQC[] = [
   { lead_index: 0, quality: 'good', flatness: 0.1, coverage: 0.95 },
   { lead_index: 1, quality: 'warn', flatness: 0.3, coverage: 0.75 },
-  { lead_index: 2, quality: 'fail', flatness: 0.6, coverage: 0.45 },
+  { lead_index: 2, quality: 'poor', flatness: 0.5, coverage: 0.55 },
+  { lead_index: 3, quality: 'fail', flatness: 0.6, coverage: 0.45 },
 ]
 
 describe('QCWarning', () => {
@@ -131,6 +132,7 @@ describe('QCWarning', () => {
       expect(screen.queryByText('Lead 0')).not.toBeInTheDocument()
       expect(screen.queryByText('Lead 1')).not.toBeInTheDocument()
       expect(screen.queryByText('Lead 2')).not.toBeInTheDocument()
+      expect(screen.queryByText('Lead 3')).not.toBeInTheDocument()
     })
 
     it('shows expand button when per_lead_qc is provided', () => {
@@ -183,6 +185,7 @@ describe('QCWarning', () => {
       expect(screen.getByText('Lead 0')).toBeInTheDocument()
       expect(screen.getByText('Lead 1')).toBeInTheDocument()
       expect(screen.getByText('Lead 2')).toBeInTheDocument()
+      expect(screen.getByText('Lead 3')).toBeInTheDocument()
     })
 
     it('displays lead quality badges with correct styles', () => {
@@ -199,10 +202,31 @@ describe('QCWarning', () => {
       const lead0 = screen.getByText('Lead 0').closest('[data-lead-index]')
       const lead1 = screen.getByText('Lead 1').closest('[data-lead-index]')
       const lead2 = screen.getByText('Lead 2').closest('[data-lead-index]')
+      const lead3 = screen.getByText('Lead 3').closest('[data-lead-index]')
 
       expect(lead0).toHaveAttribute('data-quality', 'good')
       expect(lead1).toHaveAttribute('data-quality', 'warn')
-      expect(lead2).toHaveAttribute('data-quality', 'fail')
+      expect(lead2).toHaveAttribute('data-quality', 'poor')
+      expect(lead3).toHaveAttribute('data-quality', 'fail')
+    })
+
+    it('applies orange styles for "poor" lead quality', () => {
+      const poorLeadQC: PerLeadQC[] = [
+        { lead_index: 0, quality: 'poor', flatness: 0.5, coverage: 0.55 },
+      ]
+
+      render(
+        <QCWarning
+          quality_warning="warn"
+          pipeline_warnings={['Quality warning']}
+          per_lead_qc={poorLeadQC}
+        />
+      )
+
+      fireEvent.click(screen.getByText('View Details'))
+
+      const lead0 = screen.getByText('Lead 0').closest('[data-lead-index]')
+      expect(lead0).toHaveClass('bg-orange-100', 'text-orange-800', 'border-orange-200')
     })
 
     it('displays coverage and flatness metrics for each lead', () => {

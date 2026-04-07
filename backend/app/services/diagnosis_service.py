@@ -9,6 +9,7 @@ can wire in patchable functions (enabling existing tests to keep targeting
 ``app.api.diagnosis.<name>`` without changes).
 """
 
+import asyncio
 import logging
 import shutil
 import time
@@ -46,6 +47,7 @@ class DiagnosisResponse(BaseModel):
     secondary_findings: Optional[List[str]] = None  # Non-primary detected labels
     quality_warning: Optional[str] = None  # "pass", "warn", or "fail"
     pipeline_warnings: List[str] = Field(default_factory=list)  # Human-readable quality messages
+    per_lead_qc: Optional[List[Dict[str, Any]]] = None  # Per-lead quality control metrics
     report: DiagnosisEnhancedReport
     disclaimer: str = "本结果仅供参考，不作为临床诊断依据"
 
@@ -167,6 +169,7 @@ async def _create_diagnosis_response(
     input_mode: str,
     metadata: Optional[Dict[str, Any]] = None,
     user_id: int | None = None,
+    per_lead_qc: Optional[List[Dict[str, Any]]] = None,
 ) -> DiagnosisResponse:
     prediction = result["prediction"]
     confidence = result["confidence"]
@@ -197,6 +200,7 @@ async def _create_diagnosis_response(
         top3_predictions=result.get("top3_predictions"),
         detected_labels=result.get("detected_labels"),
         secondary_findings=result.get("secondary_findings"),
+        per_lead_qc=per_lead_qc,
         report=report,
     )
     return response
@@ -220,15 +224,31 @@ class DiagnosisService:
         get_model_service_fn: Callable,
         ecg_loader_cls: Type,
         decode_image_fn: Callable,
+        semaphore: asyncio.Semaphore | None = None,
     ):
         self._get_model_service_fn = get_model_service_fn
         self._ecg_loader_cls = ecg_loader_cls
         self._decode_image_fn = decode_image_fn
+        # Semaphore to limit concurrent CPU-intensive tasks and prevent
+        # CPU oversubscription when using asyncio.to_thread.
+        # Should be shared across all service instances (provided by caller).
+        self._semaphore = semaphore
 
     @property
     def _model_service(self):
         """Lazy model service — only initialized when first needed."""
         return self._get_model_service_fn()
+
+    async def _run_in_thread(self, fn, *args, **kwargs):
+        """Run a synchronous function in a thread pool with optional concurrency limit.
+
+        Uses a semaphore (if provided) to prevent CPU oversubscription when multiple
+        concurrent requests try to run CPU-intensive tasks simultaneously.
+        """
+        if self._semaphore:
+            async with self._semaphore:
+                return await asyncio.to_thread(fn, *args, **kwargs)
+        return await asyncio.to_thread(fn, *args, **kwargs)
 
     async def diagnose_image(
         self,
@@ -244,14 +264,15 @@ class DiagnosisService:
         file_path = upload_dir / f"{_timestamp()}_{safe_name}"
 
         t0 = time.perf_counter()
-        save_upload(file, file_path)
+        await self._run_in_thread(save_upload, file, file_path)
         t_upload = time.perf_counter() - t0
 
         try:
             # Safe image decoding (defends against compression bombs, corrupt images, etc.)
             try:
                 t0 = time.perf_counter()
-                decoded = self._decode_image_fn(
+                decoded = await self._run_in_thread(
+                    self._decode_image_fn,
                     str(file_path),
                     max_pixels=settings.IMAGE_MAX_PIXELS,
                     max_dimension=settings.IMAGE_MAX_DIMENSION,
@@ -277,7 +298,7 @@ class DiagnosisService:
 
             # --- Signal extraction with QC ---
             t0 = time.perf_counter()
-            extraction = self._model_service.image_converter.extract_with_result(image_array)
+            extraction = await self._run_in_thread(self._model_service.image_converter.extract_with_result, image_array)
             signal_np = extraction.signals
             t_extract = time.perf_counter() - t0
 
@@ -285,7 +306,7 @@ class DiagnosisService:
             from ml.signal_quality import analyze_signal_quality
 
             t0 = time.perf_counter()
-            quality_report = analyze_signal_quality(signal_np)
+            quality_report = await self._run_in_thread(analyze_signal_quality, signal_np)
             t_quality = time.perf_counter() - t0
 
             # Collect pipeline warnings from extraction QC
@@ -343,6 +364,7 @@ class DiagnosisService:
                     secondary_findings=None,
                     quality_warning=quality_warning,
                     pipeline_warnings=pipeline_warnings,
+                    per_lead_qc=per_lead_qc_data,
                     report=report,
                 )
                 t_total = time.perf_counter() - t_total_start
@@ -357,7 +379,7 @@ class DiagnosisService:
             # --- Normal inference path ---
             logger.info("🔮 Running CardioFormer inference...")
             t0 = time.perf_counter()
-            result = self._model_service.predict_from_signal(signal_np)
+            result = await self._run_in_thread(self._model_service.predict_from_signal, signal_np)
             t_inference = time.perf_counter() - t0
             result["extraction_qc"] = extraction
 
@@ -365,12 +387,26 @@ class DiagnosisService:
             logger.info("   Prediction: %s", result['prediction'])
             logger.info("   Confidence: %.2f%%", result['confidence'] * 100)
 
+            # Prepare per_lead_qc for response
+            per_lead_qc_data: list[dict] | None = None
+            if extraction_qc is not None:
+                per_lead_qc_data = [
+                    {
+                        "lead_index": qc.lead_index,
+                        "quality": qc.quality,
+                        "flatness": qc.flatness,
+                        "coverage": qc.coverage,
+                    }
+                    for qc in extraction_qc.per_lead_qc
+                ]
+
             t0 = time.perf_counter()
             response = await _create_diagnosis_response(
                 file_reference=file.filename,
                 result=result,
                 input_mode="image",
                 user_id=user_id,
+                per_lead_qc=per_lead_qc_data,
             )
             t_report = time.perf_counter() - t0
             response.quality_warning = quality_warning
@@ -411,7 +447,7 @@ class DiagnosisService:
 
         try:
             t0 = time.perf_counter()
-            signal_data, metadata = loader.load_dat_file(str(dat_path))
+            signal_data, metadata = await self._run_in_thread(loader.load_dat_file, str(dat_path))
             t_load = time.perf_counter() - t0
         except FileNotFoundError as e:
             logger.warning("Missing companion file: %s", str(e))
@@ -433,7 +469,7 @@ class DiagnosisService:
         # Model inference directly from signal
         logger.info("🔮 Running CardioFormer inference on signal data...")
         t0 = time.perf_counter()
-        result = self._model_service.predict_from_signal(signal_data)
+        result = await self._run_in_thread(self._model_service.predict_from_signal, signal_data)
         t_inference = time.perf_counter() - t0
 
         logger.info("✅ Inference completed")
@@ -447,6 +483,7 @@ class DiagnosisService:
             input_mode="signal",
             metadata=metadata,
             user_id=user_id,
+            per_lead_qc=None,  # DAT files don't have image extraction QC
         )
         t_report = time.perf_counter() - t0
 
@@ -479,8 +516,8 @@ class DiagnosisService:
 
         try:
             t0 = time.perf_counter()
-            save_upload(dat_file, dat_path)
-            save_upload(hea_file, hea_path)
+            await self._run_in_thread(save_upload, dat_file, dat_path)
+            await self._run_in_thread(save_upload, hea_file, hea_path)
             t_upload = time.perf_counter() - t0
 
             logger.info("✅ Files saved (%.1fms):", t_upload * 1000)

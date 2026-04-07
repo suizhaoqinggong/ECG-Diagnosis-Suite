@@ -1,11 +1,5 @@
 import { useState } from 'react'
-
-export interface PerLeadQC {
-  lead_index: number
-  quality: 'good' | 'warn' | 'fail'
-  flatness: number
-  coverage: number
-}
+import type { PerLeadQC } from '@/types/chat'
 
 interface QCWarningProps {
   quality_warning?: 'pass' | 'warn' | 'fail' | null
@@ -35,6 +29,8 @@ function getLeadQualityClasses(quality: PerLeadQC['quality']) {
       return 'bg-green-100 text-green-800 border-green-200'
     case 'warn':
       return 'bg-amber-100 text-amber-800 border-amber-200'
+    case 'poor':
+      return 'bg-orange-100 text-orange-800 border-orange-200'
     case 'fail':
       return 'bg-red-100 text-red-800 border-red-200'
     default:

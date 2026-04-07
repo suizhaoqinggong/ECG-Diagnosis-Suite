@@ -7,7 +7,7 @@ Defends against decompression bombs, handles corrupted images, applies EXIF orie
 
 from __future__ import annotations
 
-import warnings
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +16,10 @@ from PIL import Image, ImageFile, ImageOps, UnidentifiedImageError
 from ml.pipeline_types import DecodedImage, PipelineIssue
 
 ImageFile.LOAD_TRUNCATED_IMAGES = False
+
+# Lock to serialize MAX_IMAGE_PIXELS mutations across concurrent decodes.
+# Covers the entire decode operation so no thread observes a stale limit.
+_pixel_lock = threading.Lock()
 
 
 class ImageDecodeError(ValueError):
@@ -53,67 +57,85 @@ def safe_decode_image(
         ImageDecodeError: If image is invalid, corrupted, or exceeds limits (user error)
         ImageProcessingError: If processing fails due to server-side issues
     """
+    # Temporarily raise Pillow's built-in pixel limit to our configured value
+    # so that images above Pillow's default (89M) but below our limit are allowed.
+    # The lock serializes the entire decode to prevent concurrent threads from
+    # observing or reverting the global mid-operation.
+    with _pixel_lock:
+        original_max_pixels = Image.MAX_IMAGE_PIXELS
+        Image.MAX_IMAGE_PIXELS = max_pixels
+        try:
+            return _decode_image_inner(
+                path,
+                max_pixels=max_pixels,
+                max_dimension=max_dimension,
+                processing_max_dimension=processing_max_dimension,
+            )
+        finally:
+            Image.MAX_IMAGE_PIXELS = original_max_pixels
+
+
+def _decode_image_inner(
+    path: str,
+    *,
+    max_pixels: int,
+    max_dimension: int,
+    processing_max_dimension: int,
+) -> DecodedImage:
+    """Internal decode logic. Called while holding _pixel_lock."""
     try:
-        # Disable Pillow's internal decompression bomb check;
-        # we enforce our own pixel/dimension limits instead.
-        Image.MAX_IMAGE_PIXELS = None
+        # Read header to check dimensions
+        with Image.open(path) as img:
+            width, height = img.size
 
-        # First pass: read header only to check dimensions
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(path) as img:
-                width, height = img.size
+            # Validate dimensions
+            if width == 0 or height == 0:
+                raise ImageDecodeError("图片尺寸无效：宽或高为零")
 
-                # Validate dimensions
-                if width == 0 or height == 0:
-                    raise ImageDecodeError("图片尺寸无效：宽或高为零")
+            if width * height > max_pixels:
+                raise ImageDecodeError(
+                    f"图片像素总数超过限制: {width * height:,} > {max_pixels:,}"
+                )
 
-                if width * height > max_pixels:
-                    raise ImageDecodeError(
-                        f"图片像素总数超过限制: {width * height:,} > {max_pixels:,}"
-                    )
+            if width > max_dimension or height > max_dimension:
+                raise ImageDecodeError(
+                    f"图片分辨率超过限制: {width}x{height} (最大允许 {max_dimension})"
+                )
 
-                if width > max_dimension or height > max_dimension:
-                    raise ImageDecodeError(
-                        f"图片分辨率超过限制: {width}x{height} (最大允许 {max_dimension})"
-                    )
-
-                format_name = img.format
-                original_mode = img.mode
+            format_name = img.format
+            original_mode = img.mode
 
         # Second pass: decode with EXIF transpose
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(path) as img:
-                # Check if EXIF orientation tag exists before transpose
-                from PIL.ExifTags import Base as ExifBase
+        with Image.open(path) as img:
+            # Check if EXIF orientation tag exists before transpose
+            from PIL.ExifTags import Base as ExifBase
 
-                exif_transposed = False
-                if hasattr(img, "_getexif") and img._getexif():
-                    orientation = img._getexif().get(ExifBase.Orientation, None)
-                    exif_transposed = orientation is not None and orientation != 1
+            exif_transposed = False
+            if hasattr(img, "_getexif") and img._getexif():
+                orientation = img._getexif().get(ExifBase.Orientation, None)
+                exif_transposed = orientation is not None and orientation != 1
 
-                # Apply EXIF orientation
-                img = ImageOps.exif_transpose(img)
+            # Apply EXIF orientation
+            img = ImageOps.exif_transpose(img)
 
-                # Convert to RGB
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
+            # Convert to RGB
+            if img.mode != "RGB":
+                img = img.convert("RGB")
 
-                # Downsample BEFORE creating numpy array to limit memory
-                if max(img.size) > processing_max_dimension:
-                    ratio = processing_max_dimension / max(img.size)
-                    new_size = (
-                        max(1, int(img.size[0] * ratio)),
-                        max(1, int(img.size[1] * ratio)),
-                    )
-                    img = img.resize(new_size, Image.Resampling.LANCZOS)
+            # Downsample BEFORE creating numpy array to limit memory
+            if max(img.size) > processing_max_dimension:
+                ratio = processing_max_dimension / max(img.size)
+                new_size = (
+                    max(1, int(img.size[0] * ratio)),
+                    max(1, int(img.size[1] * ratio)),
+                )
+                img = img.resize(new_size, Image.Resampling.LANCZOS)
 
-                # Convert to numpy array
-                image_rgb = np.array(img, dtype=np.uint8)
+            # Convert to numpy array
+            image_rgb = np.array(img, dtype=np.uint8)
 
-                # Get final dimensions
-                final_width, final_height = img.size
+            # Get final dimensions
+            final_width, final_height = img.size
 
         return DecodedImage(
             image_rgb=image_rgb,

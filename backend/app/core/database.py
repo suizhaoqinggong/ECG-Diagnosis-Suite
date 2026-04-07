@@ -32,7 +32,7 @@ def _get_base():
 # 创建异步引擎
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,
+    echo=settings.DB_ECHO,
     future=True,
 )
 
