@@ -48,7 +48,7 @@ describe('apiClient auth refresh handling', () => {
     refreshMock.mockRejectedValueOnce(new Error('refresh failed'))
 
     const { default: apiClient } = await import('@/api/client')
-    const rejected = apiClient.interceptors.response.handlers[0]?.rejected
+    const rejected = apiClient.interceptors.response.handlers?.[0]?.rejected
     expect(rejected).toBeTypeOf('function')
 
     const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => makeAxiosResponse(config))
@@ -75,7 +75,7 @@ describe('apiClient auth refresh handling', () => {
     })
 
     const { default: apiClient } = await import('@/api/client')
-    const rejected = apiClient.interceptors.response.handlers[0]?.rejected
+    const rejected = apiClient.interceptors.response.handlers?.[0]?.rejected
     expect(rejected).toBeTypeOf('function')
 
     const adapter = vi.fn(async (config: InternalAxiosRequestConfig) => makeAxiosResponse(config))

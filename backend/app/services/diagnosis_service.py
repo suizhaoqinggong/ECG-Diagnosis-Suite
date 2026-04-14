@@ -315,6 +315,7 @@ class DiagnosisService:
             extraction_qc: ExtractionResult | None = extraction
             quality_warning = None
             pipeline_warnings: list[str] = []
+            per_lead_qc_data: list[dict[str, Any]] | None = None
 
             if extraction_qc is not None:
                 quality_warning = extraction_qc.overall_quality
@@ -331,6 +332,15 @@ class DiagnosisService:
                 pipeline_warnings.extend(extraction_qc.warnings)
                 for issue in extraction_qc.issues:
                     pipeline_warnings.append(issue.message)
+                per_lead_qc_data = [
+                    {
+                        "lead_index": qc.lead_index,
+                        "quality": qc.quality,
+                        "flatness": qc.flatness,
+                        "coverage": qc.coverage,
+                    }
+                    for qc in extraction_qc.per_lead_qc
+                ]
 
             # --- If collapsed, skip model inference ---
             if quality_report.is_collapsed:
@@ -386,19 +396,6 @@ class DiagnosisService:
             logger.info("✅ Inference completed")
             logger.info("   Prediction: %s", result['prediction'])
             logger.info("   Confidence: %.2f%%", result['confidence'] * 100)
-
-            # Prepare per_lead_qc for response
-            per_lead_qc_data: list[dict] | None = None
-            if extraction_qc is not None:
-                per_lead_qc_data = [
-                    {
-                        "lead_index": qc.lead_index,
-                        "quality": qc.quality,
-                        "flatness": qc.flatness,
-                        "coverage": qc.coverage,
-                    }
-                    for qc in extraction_qc.per_lead_qc
-                ]
 
             t0 = time.perf_counter()
             response = await _create_diagnosis_response(

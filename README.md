@@ -171,6 +171,8 @@ Production deployment guide:
 
 - [docs/production-deployment.md](/Users/azure/ECG-Diagnosis-Suite/docs/production-deployment.md)
 
+The deployment script now waits for MySQL health checks, runs `alembic upgrade head`, and can optionally enable HTTPS termination in the bundled Nginx proxy.
+
 Container database credentials in [docker-compose.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.yml):
 
 - database: `ecg_db`

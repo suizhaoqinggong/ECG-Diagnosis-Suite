@@ -142,6 +142,8 @@ This script will:
 - create required runtime directories
 - build the frontend and backend images
 - start MySQL
+- wait for the database health check
+- run `alembic upgrade head`
 - start FastAPI
 - start the internal frontend container
 - start the public Nginx reverse proxy
@@ -235,18 +237,27 @@ Then make sure `.env.production` matches:
 
 ## 12. HTTPS
 
-The included production stack is HTTP-only by default.
+The production stack now supports optional built-in TLS termination.
 
-For real public production use, add HTTPS before wide release. The usual options are:
+To enable it:
 
-- place this stack behind a cloud load balancer that terminates TLS
-- add a host-level Nginx / Caddy in front of the containers
-- use your cloud provider's HTTPS gateway
+1. Place your certificate and private key in `deploy/certs/`
+2. Set these values in `.env.production`:
 
-If you later add HTTPS, also update:
+```env
+ENABLE_TLS=True
+TLS_CERT_FILENAME=fullchain.pem
+TLS_KEY_FILENAME=privkey.pem
+BACKEND_CORS_ORIGINS=["https://ecg.your-domain.com"]
+```
 
-- `BACKEND_CORS_ORIGINS` to use `https://...`
-- any public DNS records to match the TLS hostname
+When TLS is enabled:
+
+- Nginx listens on `443`
+- requests on `80` redirect to HTTPS, except `/health`
+- the backend receives `X-Forwarded-Proto=https`
+
+If you prefer external TLS termination instead, leave `ENABLE_TLS=False` and put this stack behind your cloud load balancer or another reverse proxy.
 
 ## 13. Backups
 

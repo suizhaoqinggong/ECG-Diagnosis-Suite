@@ -37,6 +37,7 @@ import {
   detectCategory,
   validateAttachments,
 } from './workspaceReducer'
+import type { PendingAttachment } from './workspaceReducer'
 import { mapLocalMessageToRemote, fetchAllSessionMessages, buildSessionFromRemote } from './messageMappers'
 
 const storage = new StorageManager()

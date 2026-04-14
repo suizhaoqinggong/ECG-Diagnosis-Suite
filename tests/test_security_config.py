@@ -194,6 +194,21 @@ class TestSecurityHeaders:
             k.lower() for k in response.headers
         }
 
+    def test_hsts_only_set_for_https_requests_in_production(self):
+        with patch.object(settings, "DEBUG", False):
+            http_client = TestClient(app, base_url="http://testserver")
+            https_client = TestClient(app, base_url="https://testserver")
+            http_response = http_client.get("/health")
+            https_response = https_client.get("/health")
+
+        assert "strict-transport-security" not in {
+            k.lower() for k in http_response.headers
+        }
+        assert (
+            https_response.headers.get("strict-transport-security")
+            == "max-age=31536000; includeSubDomains"
+        )
+
 
 # ===========================================================================
 # Cookie security

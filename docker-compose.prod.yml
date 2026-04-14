@@ -9,15 +9,22 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
+      # 443 is conditionally exposed via docker-compose.prod.tls.yml when ENABLE_TLS=True
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-20m}
+      ENABLE_TLS: ${ENABLE_TLS:-False}
+      TLS_CERT_FILENAME: ${TLS_CERT_FILENAME:-}
+      TLS_KEY_FILENAME: ${TLS_KEY_FILENAME:-}
     volumes:
       - ./deploy/nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./deploy/nginx/prod.tls.conf.template:/etc/nginx/templates/default.tls.conf.template:ro
+      - ./deploy/nginx/render-prod-config.sh:/opt/render-prod-config.sh:ro
+      - ./deploy/certs:/etc/nginx/certs:ro
     command:
       - /bin/sh
       - -c
-      - envsubst '$$APP_DOMAIN $$CLIENT_MAX_BODY_SIZE' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'
+      - /bin/sh /opt/render-prod-config.sh && nginx -g 'daemon off;'
     networks:
       - ecg-network
     restart: unless-stopped
