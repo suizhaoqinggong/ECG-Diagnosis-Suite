@@ -49,11 +49,23 @@ class DiagnosisReportService:
     ) -> Optional[DiagnosisEnhancedReport]:
         return parse_llm_text(raw_text, model_name, fallback_report, provider_label)
 
-    def _build_confidence_phrase(self, confidence: float, prediction: str) -> str:
+    def _build_confidence_phrase(
+        self,
+        confidence: float,
+        prediction: Optional[str] = None,
+    ) -> str:
+        if prediction is None:
+            return self._builder._build_generic_confidence_phrase(confidence)
         return self._builder._build_confidence_phrase(confidence, prediction)
 
-    def _build_follow_up(self, severity: Optional[str]) -> List[str]:
-        return self._builder._build_follow_up(severity)
+    def _build_follow_up(
+        self,
+        severity: Optional[str],
+        prediction: Optional[str] = None,
+    ) -> List[str]:
+        if prediction is None:
+            return self._builder._build_generic_follow_up(severity)
+        return self._builder._build_follow_up(severity, prediction)
 
     def _build_limitations(self, input_mode: str, confidence: float) -> List[str]:
         return self._builder._build_limitations(input_mode, confidence)
@@ -129,19 +141,23 @@ class DiagnosisReportService:
         detected_labels: Optional[List[str]] = None,
         secondary_findings: Optional[List[str]] = None,
     ) -> DiagnosisEnhancedReport:
-        fallback_report = self.build_template_report(
-            prediction=prediction,
-            confidence=confidence,
-            severity=severity,
-            icd_code=icd_code,
-            description=description,
-            recommendations=recommendations,
-            top3_predictions=top3_predictions,
-            input_mode=input_mode,
-            metadata=metadata,
-            detected_labels=detected_labels,
-            secondary_findings=secondary_findings,
-        )
+        template_kwargs: Dict[str, Any] = {
+            "prediction": prediction,
+            "confidence": confidence,
+            "severity": severity,
+            "icd_code": icd_code,
+            "description": description,
+            "recommendations": recommendations,
+            "top3_predictions": top3_predictions,
+            "input_mode": input_mode,
+            "metadata": metadata,
+        }
+        if detected_labels is not None:
+            template_kwargs["detected_labels"] = detected_labels
+        if secondary_findings is not None:
+            template_kwargs["secondary_findings"] = secondary_findings
+
+        fallback_report = self.build_template_report(**template_kwargs)
 
         if not settings.LLM_REPORT_ENABLED:
             return fallback_report

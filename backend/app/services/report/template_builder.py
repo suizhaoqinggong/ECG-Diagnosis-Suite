@@ -253,6 +253,17 @@ class TemplateReportBuilder:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _build_generic_confidence_phrase(confidence: float) -> str:
+        """Return the legacy confidence phrase used by the public wrapper API."""
+        if confidence >= 0.85:
+            return "模型对当前主判断信号较强"
+        if confidence >= 0.7:
+            return "模型对当前主判断有中等偏高把握"
+        if confidence >= 0.5:
+            return "模型给出了倾向性判断，但不确定性仍然明显"
+        return "模型输出不确定性较高，应谨慎解读"
+
+    @staticmethod
     def _confidence_tier(confidence: float) -> str:
         """Map confidence value to a tier key."""
         if confidence >= 0.85:
@@ -265,6 +276,8 @@ class TemplateReportBuilder:
     def _build_confidence_phrase(confidence: float, prediction: str) -> str:
         """Build a context-aware confidence phrase that considers diagnosis type."""
         tier = TemplateReportBuilder._confidence_tier(confidence)
+        if prediction not in _DIAGNOSIS_PROFILES:
+            return TemplateReportBuilder._build_generic_confidence_phrase(confidence)
 
         # Diagnosis-specific confidence phrasing
         if prediction == "正常":
@@ -287,12 +300,8 @@ class TemplateReportBuilder:
         return "结果存在一定不确定性，建议复查或结合其他检查手段确认。"
 
     @staticmethod
-    def _build_follow_up(severity: Optional[str], prediction: str) -> List[str]:
-        """Return personalized follow-up advice."""
-        profile = _DIAGNOSIS_PROFILES.get(prediction)
-        if profile:
-            return list(profile["follow_up"])
-        # Fallback for unknown diagnoses
+    def _build_generic_follow_up(severity: Optional[str]) -> List[str]:
+        """Return the legacy severity-based follow-up guidance."""
         if severity == "严重":
             return [
                 "建议尽快线下就医，由心内科医生结合症状、生命体征和辅助检查综合评估。",
@@ -307,6 +316,20 @@ class TemplateReportBuilder:
             "建议结合常规体检或门诊复查，持续观察是否出现新的症状。",
             "如近期存在不适表现，仍建议由专业医生结合临床信息复核。",
         ]
+
+    @staticmethod
+    def _build_follow_up(severity: Optional[str], prediction: str) -> List[str]:
+        """Return personalized follow-up advice with legacy fallbacks preserved."""
+        profile = _DIAGNOSIS_PROFILES.get(prediction)
+        generic_follow_up = TemplateReportBuilder._build_generic_follow_up(severity)
+        if not profile:
+            return generic_follow_up
+
+        merged_follow_up: list[str] = []
+        for item in list(profile["follow_up"]) + generic_follow_up:
+            if item not in merged_follow_up:
+                merged_follow_up.append(item)
+        return merged_follow_up
 
     @staticmethod
     def _build_limitations(input_mode: str, confidence: float) -> List[str]:
@@ -355,28 +378,33 @@ class TemplateReportBuilder:
         confidence_percent = f"{confidence * 100:.1f}%"
         confidence_phrase = self._build_confidence_phrase(confidence, prediction)
 
+        summary_parts = [
+            f"本次 ECG 智能分析的主判断为“{prediction}”，"
+            f"当前置信度约为 {confidence_percent}。"
+        ]
         if profile:
-            summary_parts = [profile["summary"].get(tier, "")]
-        else:
-            summary_parts = [
-                f"本次 ECG 智能分析的主判断为《{prediction}》，"
-                f"当前置信度约为 {confidence_percent}。"
-            ]
+            profile_summary = profile["summary"].get(tier, "")
+            if profile_summary:
+                summary_parts.append(profile_summary)
+        elif description:
+            summary_parts.append(description)
         summary_parts.append(confidence_phrase)
         summary = " ".join(summary_parts)
 
         # --- Clinical interpretation ---
         interpretation_parts: list[str] = []
+        if description:
+            interpretation_parts.append(description)
+        elif not profile:
+            interpretation_parts.append(
+                f"模型将该记录归入“{prediction}”类别。"
+            )
         if profile:
             interp = profile["interpretation"].get(tier, "")
             if interp:
                 interpretation_parts.append(interp)
-        else:
-            interpretation_parts.append(
-                description or f"模型将该记录归入《{prediction}》类别。"
-            )
         # Add severity and ICD info
-        interpretation_parts.append(f"综合风险分层为《{severity or '未分层'}》。")
+        interpretation_parts.append(f"综合风险分层为“{severity or '未分层'}”。")
         if icd_code:
             interpretation_parts.append(f"系统关联的 ICD 编码为 {icd_code}。")
         if metadata and metadata.get("fs"):
@@ -409,6 +437,8 @@ class TemplateReportBuilder:
                 key_findings.append(f"其他高置信类别包括：{'、'.join(alternatives)}。")
 
         # Add secondary findings as a key finding
+        if secondary_findings is None and detected_labels:
+            secondary_findings = [label for label in detected_labels if label != prediction]
         if secondary_findings:
             secondary_text = "、".join(secondary_findings)
             key_findings.append(
