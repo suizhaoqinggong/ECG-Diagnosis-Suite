@@ -9,6 +9,7 @@ TDD: these tests are written BEFORE the implementation. They should FAIL
 against the current code and PASS after the hardening changes.
 """
 
+import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -336,10 +337,9 @@ class TestDatabaseStartupSanitization:
             mock_engine.begin.return_value.__aenter__ = AsyncMock(return_value=mock_conn)
             mock_engine.begin.return_value.__aexit__ = AsyncMock(return_value=None)
 
-            import asyncio
             from app.core.database import init_db
 
-            asyncio.get_event_loop().run_until_complete(init_db())
+            asyncio.run(init_db())
 
             # Find the logger.info call that logs the DATABASE_URL
             info_calls = mock_logger.info.call_args_list

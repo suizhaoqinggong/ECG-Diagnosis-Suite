@@ -97,9 +97,7 @@ class TestDatabaseEngineDisposal:
                 pass  # Simulate app running, then shutting down
 
         # After the context manager exits (shutdown), engine.dispose should be called
-        import asyncio
-
-        asyncio.get_event_loop().run_until_complete(run_lifespan())
+        asyncio.run(run_lifespan())
 
         mock_engine.dispose.assert_awaited_once()
 

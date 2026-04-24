@@ -37,7 +37,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'login' }: AuthModalPr
 
   if (!isOpen) return null
 
-  const handleClose = (force = false) => {
+  const requestClose = (force = false) => {
     if (loading && !force) return
     onClose()
   }
@@ -69,7 +69,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'login' }: AuthModalPr
         const response = await login({ email, password })
         setAuthenticated(response.user, response.access_token)
       }
-      handleClose(true)
+      requestClose(true)
     } catch (error) {
       setError(getAuthErrorMessage(error, tab))
     } finally {
@@ -77,10 +77,14 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'login' }: AuthModalPr
     }
   }
 
+  const handleCloseClick = () => {
+    requestClose()
+  }
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={handleClose}
+      onClick={handleCloseClick}
     >
       <div
         role="dialog"
@@ -195,7 +199,7 @@ export function AuthModal({ isOpen, onClose, defaultTab = 'login' }: AuthModalPr
           <div className="flex gap-3 pt-2">
             <button
               type="button"
-              onClick={handleClose}
+              onClick={handleCloseClick}
               disabled={loading}
               className="flex-1 rounded-full border border-[var(--border)] px-4 py-3 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-white/60 hover:text-[var(--ink)]"
             >

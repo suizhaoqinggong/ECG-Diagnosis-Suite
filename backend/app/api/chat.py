@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.auth_dependencies import get_current_user
 from app.core.database import AsyncSessionLocal
@@ -116,7 +117,14 @@ async def create_session(
             title=data.title,
         )
         session.add(chat_session)
-        await session.commit()
+        try:
+            await session.commit()
+        except IntegrityError:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Session already exists",
+            )
         await session.refresh(chat_session)
         return chat_session
 

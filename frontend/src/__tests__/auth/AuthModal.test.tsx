@@ -20,6 +20,14 @@ vi.mock('@/auth/AuthProvider', () => ({
   }),
 }))
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver
+  })
+  return { promise, resolve }
+}
+
 function makeAxiosError(status: number, detail: string) {
   return {
     isAxiosError: true,
@@ -68,5 +76,52 @@ describe('AuthModal', () => {
 
     expect(screen.getByLabelText('邮箱')).toHaveValue('')
     expect(screen.getByLabelText('确认密码')).toBeInTheDocument()
+  })
+
+  it('does not close while an auth request is still pending', async () => {
+    const deferred = createDeferred<{
+      user: { id: number; email: string; display_name: string }
+      access_token: string
+    }>()
+    loginMock.mockImplementationOnce(() => deferred.promise)
+    const onClose = vi.fn()
+
+    render(<AuthModal isOpen onClose={onClose} />)
+
+    fireEvent.change(screen.getByLabelText('邮箱'), {
+      target: { value: 'doctor@example.com' },
+    })
+    fireEvent.change(screen.getByLabelText('密码'), {
+      target: { value: 'password123' },
+    })
+    fireEvent.click(screen.getAllByRole('button', { name: '登录' })[1])
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '处理中...' })).toBeDisabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(onClose).not.toHaveBeenCalled()
+
+    deferred.resolve({
+      user: {
+        id: 1,
+        email: 'doctor@example.com',
+        display_name: 'Doctor',
+      },
+      access_token: 'token',
+    })
+
+    await waitFor(() => {
+      expect(setAuthenticatedMock).toHaveBeenCalledWith(
+        {
+          id: 1,
+          email: 'doctor@example.com',
+          display_name: 'Doctor',
+        },
+        'token',
+      )
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
   })
 })

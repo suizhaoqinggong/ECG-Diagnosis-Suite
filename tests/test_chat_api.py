@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
@@ -170,6 +171,24 @@ class TestCreateSession:
             json={"id": VALID_UUID},
         )
         assert response.status_code == 422
+
+    def test_duplicate_session_returns_409(self, auth_client):
+        mock_session = _make_mock_session()
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock(
+            side_effect=IntegrityError("insert", {"id": VALID_UUID}, Exception("dup"))
+        )
+        mock_session.rollback = AsyncMock()
+
+        with patch("app.api.chat.AsyncSessionLocal", return_value=mock_session):
+            response = auth_client.post(
+                "/api/chat/sessions",
+                json={"id": VALID_UUID, "title": "New Session"},
+            )
+
+        assert response.status_code == 409
+        assert response.json()["detail"] == "Session already exists"
+        mock_session.rollback.assert_awaited_once()
 
 
 # ===========================================================================

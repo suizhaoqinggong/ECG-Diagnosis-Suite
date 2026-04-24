@@ -20,7 +20,7 @@ export function UserMenu() {
 
   if (!user) return null
 
-  const closeChangePasswordModal = (force = false) => {
+  const requestCloseChangePasswordModal = (force = false) => {
     if (changePasswordLoading && !force) return
     setShowChangePassword(false)
     setOldPassword('')
@@ -28,7 +28,7 @@ export function UserMenu() {
     setChangePasswordError('')
   }
 
-  const closeDeleteAccountModal = (force = false) => {
+  const requestCloseDeleteAccountModal = (force = false) => {
     if (deleteLoading && !force) return
     setShowDeleteAccount(false)
     setDeletePassword('')
@@ -51,7 +51,7 @@ export function UserMenu() {
 
     try {
       await changePassword(oldPassword, newPassword)
-      closeChangePasswordModal(true)
+      requestCloseChangePasswordModal(true)
       logoutState()
       toast.success('密码已修改，请重新登录')
     } catch (error) {
@@ -68,7 +68,7 @@ export function UserMenu() {
 
     try {
       await deleteAccount(deletePassword)
-      closeDeleteAccountModal(true)
+      requestCloseDeleteAccountModal(true)
       logoutState()
       toast.success('账号已删除')
     } catch (error) {
@@ -83,6 +83,14 @@ export function UserMenu() {
     setDeleteError('')
     setDeletePassword('')
     setShowDeleteAccount(true)
+  }
+
+  const handleCloseChangePasswordModal = () => {
+    requestCloseChangePasswordModal()
+  }
+
+  const handleCloseDeleteAccountModal = () => {
+    requestCloseDeleteAccountModal()
   }
 
   const initial = (user.display_name || user.email).charAt(0).toUpperCase()
@@ -152,7 +160,7 @@ export function UserMenu() {
       {showChangePassword && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={closeChangePasswordModal}
+          onClick={handleCloseChangePasswordModal}
         >
           <form
             onSubmit={handleChangePassword}
@@ -191,7 +199,7 @@ export function UserMenu() {
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
-                onClick={closeChangePasswordModal}
+                onClick={handleCloseChangePasswordModal}
                 disabled={changePasswordLoading}
                 className="flex-1 rounded-full border border-[var(--border)] px-4 py-3 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-white/60"
               >
@@ -212,7 +220,7 @@ export function UserMenu() {
       {showDeleteAccount && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-          onClick={closeDeleteAccountModal}
+          onClick={handleCloseDeleteAccountModal}
         >
           <form
             onSubmit={handleDeleteAccount}
@@ -240,7 +248,7 @@ export function UserMenu() {
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
-                onClick={closeDeleteAccountModal}
+                onClick={handleCloseDeleteAccountModal}
                 disabled={deleteLoading}
                 className="flex-1 rounded-full border border-[var(--border)] px-4 py-3 text-sm font-medium text-[var(--ink-muted)] transition hover:bg-white/60"
               >

@@ -5,7 +5,7 @@ import logging
 import urllib.parse
 from dataclasses import dataclass
 
-from sqlalchemy import inspect
+from sqlalchemy import MetaData, inspect
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -56,6 +56,49 @@ def _mask_url_password(url: str) -> str:
     return url
 
 
+def _find_missing_managed_columns(sync_conn, metadata, table_names: set[str]) -> dict[str, list[str]]:
+    """Return missing managed columns for already-existing tables.
+
+    This catches legacy development databases where a managed table exists,
+    but its schema predates the current ORM models.
+    """
+    inspector = inspect(sync_conn)
+    managed_tables = {table.name: table for table in metadata.sorted_tables}
+    issues: dict[str, list[str]] = {}
+
+    for table_name in table_names:
+        table = managed_tables.get(table_name)
+        if table is None:
+            continue
+        existing_columns = {
+            column_info["name"] for column_info in inspector.get_columns(table_name)
+        }
+        missing_columns = sorted(
+            column.name for column in table.columns
+            if column.name not in existing_columns
+        )
+        if missing_columns:
+            issues[table_name] = missing_columns
+
+    return issues
+
+
+def _format_schema_issues(issues: dict[str, list[str]]) -> str:
+    return "; ".join(
+        f"{table} missing [{', '.join(columns)}]"
+        for table, columns in sorted(issues.items())
+    )
+
+
+def _drop_existing_tables(sync_conn, table_names: set[str]) -> None:
+    if not table_names:
+        return
+
+    metadata = MetaData()
+    metadata.reflect(bind=sync_conn, only=sorted(table_names))
+    metadata.drop_all(bind=sync_conn)
+
+
 async def init_db():
     """初始化数据库"""
     Base = _get_base()
@@ -76,6 +119,42 @@ async def init_db():
                     "Database migrations are required in production. "
                     "Run `alembic upgrade head` before starting the app."
                 )
+
+            managed_table_names = {
+                table.name for table in Base.metadata.sorted_tables
+            }
+            existing_managed_tables = table_names & managed_table_names
+
+            if existing_managed_tables:
+                schema_issues = await conn.run_sync(
+                    lambda sync_conn: _find_missing_managed_columns(
+                        sync_conn,
+                        Base.metadata,
+                        existing_managed_tables,
+                    )
+                )
+                if schema_issues:
+                    schema_details = _format_schema_issues(schema_issues)
+                    dialect_name = await conn.run_sync(
+                        lambda sync_conn: sync_conn.dialect.name
+                    )
+                    if dialect_name == "sqlite":
+                        logger.warning(
+                            "Legacy SQLite schema detected without Alembic metadata (%s). "
+                            "Resetting local database schema.",
+                            schema_details,
+                        )
+                        await conn.run_sync(
+                            lambda sync_conn: _drop_existing_tables(
+                                sync_conn,
+                                table_names,
+                            )
+                        )
+                    else:
+                        raise RuntimeError(
+                            "Database schema is out of date. "
+                            f"{schema_details}. Run `alembic upgrade head`."
+                        )
 
             await conn.run_sync(Base.metadata.create_all)
     database_status.ready = True

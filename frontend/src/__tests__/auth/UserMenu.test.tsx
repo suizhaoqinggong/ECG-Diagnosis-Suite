@@ -42,6 +42,14 @@ vi.mock('react-hot-toast', () => ({
   },
 }))
 
+function createDeferred() {
+  let resolve!: () => void
+  const promise = new Promise<void>((resolver) => {
+    resolve = resolver
+  })
+  return { promise, resolve }
+}
+
 describe('UserMenu', () => {
   beforeEach(() => {
     logoutMock.mockReset()
@@ -88,6 +96,36 @@ describe('UserMenu', () => {
       expect(deleteAccountMock).toHaveBeenCalledWith('password123')
       expect(logoutMock).toHaveBeenCalledTimes(1)
       expect(toastSuccessMock).toHaveBeenCalledWith('账号已删除')
+    })
+  })
+
+  it('keeps the change-password modal open while the request is pending', async () => {
+    const deferred = createDeferred()
+    changePasswordMock.mockImplementationOnce(() => deferred.promise)
+
+    render(<UserMenu />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Doctor/i }))
+    fireEvent.click(screen.getByRole('button', { name: '修改密码' }))
+    fireEvent.change(screen.getByLabelText('当前密码'), {
+      target: { value: 'old-password' },
+    })
+    fireEvent.change(screen.getByLabelText('新密码'), {
+      target: { value: 'new-password123' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '确认修改' }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '处理中...' })).toBeDisabled()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    expect(screen.getByRole('heading', { name: '修改密码' })).toBeInTheDocument()
+
+    deferred.resolve()
+
+    await waitFor(() => {
+      expect(logoutMock).toHaveBeenCalledTimes(1)
     })
   })
 })

@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from sqlalchemy import create_engine, inspect as sa_inspect
+from sqlalchemy.ext.asyncio import create_async_engine
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
@@ -55,3 +57,42 @@ def test_init_db_requires_migrations_in_production():
                 asyncio.run(init_db())
 
     assert "alembic upgrade head" in str(exc_info.value)
+
+
+def test_init_db_recreates_legacy_sqlite_schema_without_alembic(tmp_path):
+    db_path = tmp_path / "legacy.sqlite"
+    sync_engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        with sync_engine.begin() as conn:
+            conn.exec_driver_sql(
+                """
+                CREATE TABLE users (
+                    id INTEGER NOT NULL,
+                    username VARCHAR(50) NOT NULL,
+                    email VARCHAR(100) NOT NULL,
+                    hashed_password VARCHAR(255) NOT NULL,
+                    created_at DATETIME,
+                    PRIMARY KEY (id),
+                    UNIQUE (username),
+                    UNIQUE (email)
+                )
+                """
+            )
+
+        async_engine = create_async_engine(f"sqlite+aiosqlite:///{db_path}")
+        try:
+            with patch("app.core.database.engine", async_engine):
+                asyncio.run(init_db())
+        finally:
+            asyncio.run(async_engine.dispose())
+
+        columns = {
+            column["name"]
+            for column in sa_inspect(sync_engine).get_columns("users")
+        }
+        assert "display_name" in columns
+        assert "is_active" in columns
+        assert "updated_at" in columns
+        assert "username" not in columns
+    finally:
+        sync_engine.dispose()
