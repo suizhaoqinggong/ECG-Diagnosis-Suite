@@ -9,7 +9,7 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
-      # 443 is conditionally exposed via docker-compose.prod.tls.yml when ENABLE_TLS=True
+      # Port 443 is added by docker-compose.prod.tls.yml when ENABLE_TLS=True.
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
       CLIENT_MAX_BODY_SIZE: ${CLIENT_MAX_BODY_SIZE:-20m}

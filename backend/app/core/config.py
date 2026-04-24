@@ -6,10 +6,15 @@ import warnings
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import ConfigDict, model_validator
+from dotenv import load_dotenv
+from pydantic import ConfigDict, Field, model_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+load_dotenv(_BACKEND_DIR / ".env", override=False)
+load_dotenv(_BACKEND_DIR / ".env.local", override=True)
 
 
 class Settings(BaseSettings):
@@ -51,6 +56,8 @@ class Settings(BaseSettings):
     MODEL_CHECKPOINT_PATH: Optional[str] = None
     DEVICE: str = "cpu"
     CONFIDENCE_THRESHOLD: float = 0.7
+    MODEL_TEMPERATURE: float = Field(default=0.5, gt=0, description="温度缩放参数，必须>0")
+    MODEL_NORMAL_BIAS: float = Field(default=1.8, ge=0, description="NORM类logit偏置补偿，必须>=0")
 
     # Report settings
     REPORT_OUTPUT_DIR: str = "data/reports"
@@ -175,7 +182,6 @@ class Settings(BaseSettings):
         self.report_output_dir_path.mkdir(parents=True, exist_ok=True)
 
     model_config = ConfigDict(
-        env_file=Path(__file__).resolve().parents[2] / ".env",
         case_sensitive=True,
     )
 

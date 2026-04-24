@@ -27,7 +27,6 @@ from app.services.diagnosis_report_service import (
     DiagnosisEnhancedReport,
     get_diagnosis_report_service,
 )
-from ml.cardioformer_service import CardioFormerService
 from ml.image_decoder import ImageDecodeError, ImageProcessingError
 
 logger = logging.getLogger(__name__)
@@ -129,6 +128,8 @@ def get_model_service():
     """Get or create CardioFormer service instance"""
     global _model_service
     if _model_service is None:
+        from ml.cardioformer_service import CardioFormerService
+
         checkpoint_path = settings.get_model_checkpoint_path()
 
         if checkpoint_path is None:
@@ -148,6 +149,8 @@ def get_model_service():
             signal_length=1000,
             input_channels=12,
             device=settings.DEVICE,
+            temperature=settings.MODEL_TEMPERATURE,
+            normal_bias=settings.MODEL_NORMAL_BIAS,
         )
 
     return _model_service
@@ -186,6 +189,8 @@ async def _create_diagnosis_response(
         all_probabilities=result.get("all_probabilities"),
         input_mode=input_mode,
         metadata=metadata,
+        detected_labels=result.get("detected_labels"),
+        secondary_findings=result.get("secondary_findings"),
     )
 
     response = DiagnosisResponse(

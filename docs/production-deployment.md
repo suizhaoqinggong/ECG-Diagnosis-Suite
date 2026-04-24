@@ -4,7 +4,7 @@ This document describes the production deployment flow for this repository after
 
 The production stack included in this repository is built around:
 
-- `reverse-proxy`: public Nginx entrypoint on port `80`
+- `reverse-proxy`: public Nginx entrypoint on port `80`, with `443` added by a TLS compose override when built-in TLS is enabled
 - `frontend`: internal static frontend container
 - `backend`: internal FastAPI container
 - `db`: internal MySQL container
@@ -14,6 +14,7 @@ Only the reverse proxy is exposed to the internet. The backend and database rema
 ## Files Added for Production
 
 - [docker-compose.prod.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.prod.yml)
+- [docker-compose.prod.tls.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.prod.tls.yml)
 - [.env.production.example](/Users/azure/ECG-Diagnosis-Suite/.env.production.example)
 - [scripts/deploy-production.sh](/Users/azure/ECG-Diagnosis-Suite/scripts/deploy-production.sh)
 - [deploy/nginx/prod.conf.template](/Users/azure/ECG-Diagnosis-Suite/deploy/nginx/prod.conf.template)
@@ -34,6 +35,7 @@ Before deployment, open only the ports below on your cloud firewall / security g
 
 - `22/tcp` for SSH
 - `80/tcp` for HTTP
+- `443/tcp` for HTTPS only if `ENABLE_TLS=True`
 
 Do not open:
 
@@ -127,7 +129,7 @@ mkdir -p models/checkpoints
 cp /path/to/your/best.ckpt models/checkpoints/best.ckpt
 ```
 
-If no checkpoint exists, the backend may still start, but diagnosis quality will not be usable in production.
+Production startup requires a real checkpoint. If no checkpoint exists in one of the supported paths, the backend exits with a startup error.
 
 ## 7. Deploy
 
@@ -149,6 +151,8 @@ This script will:
 - start the public Nginx reverse proxy
 
 ## 8. Verify the Deployment
+
+If `ENABLE_TLS=True`, append `-f docker-compose.prod.tls.yml` to the Docker Compose commands in this section and the next one.
 
 Check container status:
 
@@ -172,6 +176,12 @@ If your domain already points to the server:
 
 ```bash
 curl http://your-domain.com/health
+```
+
+If built-in TLS is enabled:
+
+```bash
+curl https://your-domain.com/health
 ```
 
 Open in the browser:
@@ -253,7 +263,8 @@ BACKEND_CORS_ORIGINS=["https://ecg.your-domain.com"]
 
 When TLS is enabled:
 
-- Nginx listens on `443`
+- the deployment script automatically adds `docker-compose.prod.tls.yml`
+- Docker publishes `443`, and Nginx listens on `443`
 - requests on `80` redirect to HTTPS, except `/health`
 - the backend receives `X-Forwarded-Proto=https`
 

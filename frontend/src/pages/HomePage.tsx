@@ -144,7 +144,15 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                {auth.user ? (
+                {auth.isLoading ? (
+                  <div
+                    aria-live="polite"
+                    aria-busy="true"
+                    className="rounded-full border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--ink-muted)]"
+                  >
+                    检查登录状态...
+                  </div>
+                ) : auth.user ? (
                   <UserMenu />
                 ) : (
                   <button

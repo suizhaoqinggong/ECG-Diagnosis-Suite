@@ -35,6 +35,10 @@ export async function changePassword(oldPassword: string, newPassword: string): 
   })
 }
 
-export async function deleteAccount(): Promise<void> {
-  await apiClient.post('/api/auth/delete-account', {}, { withCredentials: true })
+export async function deleteAccount(password: string): Promise<void> {
+  await apiClient.post(
+    '/api/auth/delete-account',
+    { password },
+    { withCredentials: true },
+  )
 }

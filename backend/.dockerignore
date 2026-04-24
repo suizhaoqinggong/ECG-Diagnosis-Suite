@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+*.py[cod]
+*.db
+*.sqlite
+*.sqlite3
+data/
+tests/
+test_ecg.png
+create_test_ecg.py

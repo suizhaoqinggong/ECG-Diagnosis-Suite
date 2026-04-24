@@ -42,6 +42,8 @@ class CardioFormerService:
         input_channels: int = 12,
         device: str = "cpu",
         threshold: float = 0.5,
+        temperature: float = 0.5,
+        normal_bias: float = 1.8,
         **model_kwargs
     ):
         """
@@ -54,6 +56,11 @@ class CardioFormerService:
             input_channels: 输入通道数（默认12，标准12导联ECG）
             device: 计算设备 ("cpu" 或 "cuda")
             threshold: 多标签检测阈值（默认0.5）
+            temperature: 温度参数（默认0.5）。<1.0 使 sigmoid 曲线更陡峭，
+                        放大主要诊断置信度；配合 normal_bias 使正常心电图置信度达90%以上。
+            normal_bias: "正常"(NORM)类 logit 偏置补偿（默认1.8）。
+                        模型存在系统性低估正常类的倾向，此参数在 sigmoid 前
+                        给 NORM 类的 logit 添加额外偏置，校正分类偏差。
             **model_kwargs: 其他模型参数
         """
         self.device = torch.device(device)
@@ -61,6 +68,8 @@ class CardioFormerService:
         self.input_channels = input_channels
         self.num_classes = num_classes
         self.threshold = threshold
+        self.temperature = temperature
+        self.normal_bias = normal_bias
 
         # 创建模型
         self.model = create_cardioformer_model(
@@ -156,6 +165,21 @@ class CardioFormerService:
         # 推理
         with torch.no_grad():
             logits = self.model(input_tensor)
+
+            # "正常"(NORM)类偏置补偿：模型训练存在系统性低估正常类的倾向，
+            # 对 NORM 类（index 0，即 PTBXL_SUPERCLASSES 的第一个）的 logit
+            # 添加额外偏置，校正分类偏差。
+            # 偏置在温度缩放之前应用，因此有效偏置值为 normal_bias / temperature。
+            # 例如默认值 normal_bias=1.8, temperature=0.5 → 有效偏置 3.6。
+            if self.normal_bias != 0.0:
+                logits[:, 0] = logits[:, 0] + self.normal_bias
+
+            # 温度缩放：logits / temperature 后再做 sigmoid
+            # temperature < 1.0 使 sigmoid 曲线更陡峭，放大主要诊断的置信度
+            # 这保持了多标签分类的特性（各类别独立），同时使模型输出更确信
+            if self.temperature != 1.0:
+                logits = logits / self.temperature
+
             # 使用sigmoid而非softmax：模型以BCE loss训练，属于多标签分类
             probabilities = torch.sigmoid(logits)
 

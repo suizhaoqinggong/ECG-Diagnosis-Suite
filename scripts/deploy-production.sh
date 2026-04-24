@@ -6,7 +6,9 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="$PROJECT_ROOT/.env.production"
 ENV_EXAMPLE="$PROJECT_ROOT/.env.production.example"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.prod.yml"
-COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE")
+TLS_COMPOSE_FILE="$PROJECT_ROOT/docker-compose.prod.tls.yml"
+
+compose_files=(-f "$COMPOSE_FILE")
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required"
@@ -24,6 +26,24 @@ if [[ ! -f "$ENV_FILE" ]]; then
   echo "Edit it first, then rerun this script."
   exit 1
 fi
+
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
+case "${ENABLE_TLS:-False}" in
+  True|true|1)
+    if [[ ! -f "$TLS_COMPOSE_FILE" ]]; then
+      echo "Missing TLS compose override: $TLS_COMPOSE_FILE"
+      exit 1
+    fi
+    echo "Built-in TLS enabled; loading $TLS_COMPOSE_FILE"
+    compose_files+=(-f "$TLS_COMPOSE_FILE")
+    ;;
+esac
+
+COMPOSE=(docker compose --env-file "$ENV_FILE" "${compose_files[@]}")
 
 mkdir -p \
   "$PROJECT_ROOT/data/uploads" \

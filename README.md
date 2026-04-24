@@ -152,7 +152,6 @@ Services:
 - `backend`: FastAPI service on port `8000`
 - `frontend`: static frontend on port `80`
 - `db`: MySQL 8.4 on port `3306`
-- `redis`: Redis 7 on port `6379`
 
 ## Production Deployment
 
@@ -160,18 +159,19 @@ The repository now includes a production stack for direct server deployment:
 
 ```bash
 cp .env.production.example .env.production
-bash scripts/deploy-production.sh
+bash deploy.sh
 ```
 
 Production compose file:
 
 - [docker-compose.prod.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.prod.yml)
+- [docker-compose.prod.tls.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.prod.tls.yml)
 
 Production deployment guide:
 
 - [docs/production-deployment.md](/Users/azure/ECG-Diagnosis-Suite/docs/production-deployment.md)
 
-The deployment script now waits for MySQL health checks, runs `alembic upgrade head`, and can optionally enable HTTPS termination in the bundled Nginx proxy.
+The deployment script now waits for MySQL health checks, runs `alembic upgrade head`, and can optionally enable HTTPS termination in the bundled Nginx proxy on `443`.
 
 Container database credentials in [docker-compose.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.yml):
 
@@ -194,6 +194,8 @@ You can also override this with:
 ```env
 MODEL_CHECKPOINT_PATH=/absolute/path/to/best.ckpt
 ```
+
+Production startup requires a real checkpoint. If no checkpoint is found, the backend exits instead of starting with random weights.
 
 ## API Surface
 

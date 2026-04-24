@@ -22,13 +22,15 @@ if [ ! -f "$BACKEND_DIR/app/main.py" ]; then
 fi
 
 # 检查Python环境
-if [ -d "$VENV_DIR" ]; then
+PYTHON_BIN=""
+
+if [ -x "$VENV_DIR/bin/python" ] && "$VENV_DIR/bin/python" -c "import sys" > /dev/null 2>&1; then
     PYTHON_BIN="$VENV_DIR/bin/python"
-elif [ -d "$LEGACY_VENV_DIR" ]; then
+elif [ -x "$LEGACY_VENV_DIR/bin/python" ] && "$LEGACY_VENV_DIR/bin/python" -c "import sys" > /dev/null 2>&1; then
     PYTHON_BIN="$LEGACY_VENV_DIR/bin/python"
 else
     echo "❌ 错误：虚拟环境不存在，请先运行:"
-    echo "   cd \"$BACKEND_DIR\" && uv venv .venv --python 3.11 && uv pip install --python .venv/bin/python -r requirements.txt"
+    echo "   cd \"$PROJECT_ROOT\" && ./scripts/quick-start.sh"
     exit 1
 fi
 
@@ -50,10 +52,15 @@ fi
 echo "✅ 环境检查通过"
 echo ""
 
+UVICORN_ARGS=(app.main:app --port 8000)
+if [ "${ENABLE_RELOAD:-false}" = "true" ]; then
+    UVICORN_ARGS+=(--reload)
+fi
+
 # 启动后端
 echo "🚀 启动后端服务..."
 cd "$BACKEND_DIR"
-MODEL_CHECKPOINT_PATH="$MODEL_CHECKPOINT_PATH" "$PYTHON_BIN" -m uvicorn app.main:app --reload --port 8000 > /tmp/ecg_backend.log 2>&1 &
+WATCHFILES_FORCE_POLLING=true MODEL_CHECKPOINT_PATH="$MODEL_CHECKPOINT_PATH" "$PYTHON_BIN" -m uvicorn "${UVICORN_ARGS[@]}" > /tmp/ecg_backend.log 2>&1 &
 BACKEND_PID=$!
 echo "   后端PID: $BACKEND_PID"
 echo "   后端日志: /tmp/ecg_backend.log"
@@ -61,13 +68,19 @@ echo "   后端日志: /tmp/ecg_backend.log"
 # 等待后端启动
 echo ""
 echo "⏳ 等待后端启动..."
-sleep 5
 
 # 检查后端是否启动成功
-if curl -s http://127.0.0.1:8000/docs > /dev/null 2>&1; then
-    echo "✅ 后端启动成功"
-    echo "   API文档: http://127.0.0.1:8000/docs"
-else
+for _ in $(seq 1 30); do
+    if curl -s http://127.0.0.1:8000/health > /dev/null 2>&1; then
+        echo "✅ 后端启动成功"
+        echo "   API文档: http://127.0.0.1:8000/docs"
+        BACKEND_READY=1
+        break
+    fi
+    sleep 2
+done
+
+if [ -z "${BACKEND_READY:-}" ]; then
     echo "❌ 后端启动失败，请检查日志:"
     echo "   tail -50 /tmp/ecg_backend.log"
     exit 1
@@ -97,5 +110,5 @@ echo "启动前端:"
 echo "  cd \"$PROJECT_ROOT/frontend\" && npm run dev"
 echo ""
 echo "停止服务:"
-echo "  kill $BACKEND_PID"
+echo "  \"$PROJECT_ROOT/stop.sh\""
 echo ""

@@ -12,15 +12,6 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-# Check uv
-if ! command -v uv &> /dev/null; then
-    echo -e "${RED}❌ uv 未安装${NC}"
-    echo "请先安装 uv: https://docs.astral.sh/uv/"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ uv 已安装${NC}"
-
 # Check Node.js
 if ! command -v node &> /dev/null; then
     echo -e "${RED}❌ Node.js 未安装${NC}"
@@ -35,13 +26,31 @@ echo ""
 echo "📦 设置后端..."
 cd backend
 
-if [ ! -d ".venv" ]; then
+PYTHON_BIN=""
+
+if [ -x ".venv/bin/python" ] && .venv/bin/python -c "import sys" > /dev/null 2>&1; then
+    PYTHON_BIN=".venv/bin/python"
+elif [ -x "venv/bin/python" ] && venv/bin/python -c "import sys" > /dev/null 2>&1; then
+    PYTHON_BIN="venv/bin/python"
+fi
+
+if [ -z "$PYTHON_BIN" ]; then
     echo "创建虚拟环境..."
-    uv venv .venv --python 3.11
+    if command -v uv &> /dev/null; then
+        uv venv .venv --python 3.11
+    else
+        python3 -m venv .venv
+    fi
+    PYTHON_BIN=".venv/bin/python"
 fi
 
 echo "安装Python依赖..."
-uv pip install --python .venv/bin/python -q -r requirements.txt
+if command -v uv &> /dev/null; then
+    uv pip install --python "$PYTHON_BIN" -q -r requirements.txt
+else
+    "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel
+    "$PYTHON_BIN" -m pip install -r requirements.txt
+fi
 
 # Setup frontend
 echo ""
@@ -79,7 +88,7 @@ echo "🎯 下一步操作："
 echo ""
 echo "1️⃣  启动后端："
 echo "    cd backend"
-echo "    .venv/bin/python -m uvicorn app.main:app --reload"
+echo "    ${PYTHON_BIN} -m uvicorn app.main:app --reload"
 echo ""
 echo "2️⃣  启动前端（新终端）："
 echo "    cd frontend"

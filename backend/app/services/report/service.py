@@ -49,8 +49,8 @@ class DiagnosisReportService:
     ) -> Optional[DiagnosisEnhancedReport]:
         return parse_llm_text(raw_text, model_name, fallback_report, provider_label)
 
-    def _build_confidence_phrase(self, confidence: float) -> str:
-        return self._builder._build_confidence_phrase(confidence)
+    def _build_confidence_phrase(self, confidence: float, prediction: str) -> str:
+        return self._builder._build_confidence_phrase(confidence, prediction)
 
     def _build_follow_up(self, severity: Optional[str]) -> List[str]:
         return self._builder._build_follow_up(severity)
@@ -70,6 +70,8 @@ class DiagnosisReportService:
         top3_predictions: Optional[List[Dict[str, Any]]],
         input_mode: str,
         metadata: Optional[Dict[str, Any]] = None,
+        detected_labels: Optional[List[str]] = None,
+        secondary_findings: Optional[List[str]] = None,
     ) -> DiagnosisEnhancedReport:
         return self._builder.build_report(
             prediction=prediction,
@@ -81,6 +83,8 @@ class DiagnosisReportService:
             top3_predictions=top3_predictions,
             input_mode=input_mode,
             metadata=metadata,
+            detected_labels=detected_labels,
+            secondary_findings=secondary_findings,
         )
 
     async def _generate_with_openai(
@@ -122,6 +126,8 @@ class DiagnosisReportService:
         all_probabilities: Optional[Dict[str, float]],
         input_mode: str,
         metadata: Optional[Dict[str, Any]] = None,
+        detected_labels: Optional[List[str]] = None,
+        secondary_findings: Optional[List[str]] = None,
     ) -> DiagnosisEnhancedReport:
         fallback_report = self.build_template_report(
             prediction=prediction,
@@ -133,6 +139,8 @@ class DiagnosisReportService:
             top3_predictions=top3_predictions,
             input_mode=input_mode,
             metadata=metadata,
+            detected_labels=detected_labels,
+            secondary_findings=secondary_findings,
         )
 
         if not settings.LLM_REPORT_ENABLED:
