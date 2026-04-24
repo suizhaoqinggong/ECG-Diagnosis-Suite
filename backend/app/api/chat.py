@@ -62,6 +62,7 @@ class MessageCreate(BaseModel):
     )
     role: MessageRole
     type: MessageType
+    title: str | None = None
     content: str
     attachments: dict | None = None
     result: dict | None = None
@@ -77,6 +78,7 @@ class MessageResponse(BaseModel):
     id: str
     role: MessageRole
     type: MessageType
+    title: str | None
     content: str
     attachments: dict | None
     result: dict | None
@@ -309,6 +311,7 @@ async def create_messages(
                 session_id=session_id,
                 role=m.role,
                 type=m.type,
+                title=m.title,
                 content=m.content,
                 attachments=m.attachments,
                 result=m.result,

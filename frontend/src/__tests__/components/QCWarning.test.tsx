@@ -72,6 +72,18 @@ describe('QCWarning', () => {
       expect(container.firstChild).toBeNull()
     })
 
+    it('still renders pipeline warnings when quality_warning is pass', () => {
+      render(
+        <QCWarning
+          quality_warning="pass"
+          pipeline_warnings={['Collapsed signal detected']}
+        />
+      )
+
+      expect(screen.getByRole('alert')).toBeInTheDocument()
+      expect(screen.getByText('Collapsed signal detected')).toBeInTheDocument()
+    })
+
     it('applies yellow warning styles for "warn" severity', () => {
       render(
         <QCWarning

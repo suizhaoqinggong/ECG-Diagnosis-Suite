@@ -76,6 +76,7 @@ def _mock_message_orm(
     session_id=VALID_UUID,
     role="user",
     type="prompt",
+    title=None,
     content="hello",
     status="completed",
 ):
@@ -86,6 +87,7 @@ def _mock_message_orm(
     m.session_id = session_id
     m.role = role
     m.type = type
+    m.title = title
     m.content = content
     m.status = status
     m.attachments = None
@@ -350,7 +352,7 @@ class TestListMessages:
     def test_returns_messages(self, auth_client):
         mock_session = _make_mock_session()
         orm = _mock_session_orm()
-        msg = _mock_message_orm(content="Hello world")
+        msg = _mock_message_orm(content="Hello world", title="Clinical note")
         scalars_mock = MagicMock()
         scalars_mock.all.return_value = [msg]
 
@@ -366,6 +368,7 @@ class TestListMessages:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
+        assert data[0]["title"] == "Clinical note"
         assert data[0]["content"] == "Hello world"
 
     def test_invalid_cursor_returns_400(self, auth_client):
@@ -394,6 +397,7 @@ class TestCreateMessages:
             "id": msg_id,
             "role": "user",
             "type": "prompt",
+            "title": "Submitted ECG for review",
             "content": "test",
             "status": "completed",
         }
@@ -401,7 +405,6 @@ class TestCreateMessages:
     def test_create_success(self, auth_client):
         mock_session = _make_mock_session()
         orm = _mock_session_orm()
-        msg = _mock_message_orm()
         # execute 1: session check, execute 2: existing IDs check (empty)
         mock_session.execute = AsyncMock(
             side_effect=[
@@ -422,6 +425,8 @@ class TestCreateMessages:
                 json={"messages": [self._make_message_payload()]},
             )
         assert response.status_code == 201
+        created_message = mock_session.add.call_args_list[0].args[0]
+        assert created_message.title == "Submitted ECG for review"
 
     def test_idempotent_when_all_ids_exist(self, auth_client):
         mock_session = _make_mock_session()

@@ -10,6 +10,7 @@ export interface MessageResponse {
   id: string
   role: string
   type: string
+  title?: string | null
   content: string
   attachments: Record<string, unknown> | null
   result: Record<string, unknown> | null
@@ -21,6 +22,7 @@ export interface MessageCreate {
   id: string
   role: string
   type: string
+  title?: string | null
   content: string
   attachments?: Record<string, unknown> | null
   result?: Record<string, unknown> | null

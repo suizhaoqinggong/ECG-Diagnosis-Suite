@@ -44,9 +44,14 @@ export default function QCWarning({
   per_lead_qc,
 }: QCWarningProps) {
   const [expanded, setExpanded] = useState(false)
+  const effectiveQuality =
+    quality_warning === 'warn' || quality_warning === 'fail'
+      ? quality_warning
+      : pipeline_warnings.length > 0
+        ? 'warn'
+        : quality_warning
 
-  // Don't render if quality is good/pass or undefined/null
-  if (!quality_warning || quality_warning === 'pass') {
+  if (!effectiveQuality || effectiveQuality === 'pass') {
     return null
   }
 
@@ -54,15 +59,15 @@ export default function QCWarning({
 
   return (
     <div
-      className={`rounded-lg border px-4 py-3 ${getQualityClasses(quality_warning)}`}
+      className={`rounded-lg border px-4 py-3 ${getQualityClasses(effectiveQuality)}`}
       role="alert"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium uppercase tracking-wider">
-          {getQualityBadgeLabel(quality_warning)}
+          {getQualityBadgeLabel(effectiveQuality)}
         </span>
         <span className="rounded-full border border-current/20 px-2 py-0.5 text-xs font-semibold uppercase">
-          {quality_warning}
+          {effectiveQuality}
         </span>
       </div>
 

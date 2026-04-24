@@ -57,6 +57,7 @@ class ChatMessage(Base):
     )
     role: Mapped[MessageRole] = mapped_column(String(20), nullable=False)
     type: Mapped[MessageType] = mapped_column(String(20), nullable=False)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     attachments: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)

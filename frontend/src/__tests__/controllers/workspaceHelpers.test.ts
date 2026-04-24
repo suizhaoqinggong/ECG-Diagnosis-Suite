@@ -139,6 +139,7 @@ describe('mapRemoteMessage', () => {
       id: 'msg-1',
       role: 'assistant',
       type: 'diagnosis',
+      title: null,
       content: 'Analysis complete',
       attachments: null,
       result: null,
@@ -213,6 +214,16 @@ describe('mapRemoteMessage', () => {
     expect(result.content).toBe('')
   })
 
+  it('keeps non-empty message titles from the server', () => {
+    const result = mapRemoteMessage(makeRemoteMessage({ title: 'Submitted ECG for review' }))
+    expect(result.title).toBe('Submitted ECG for review')
+  })
+
+  it('drops whitespace-only message titles from the server', () => {
+    const result = mapRemoteMessage(makeRemoteMessage({ title: '   ' }))
+    expect(result.title).toBeUndefined()
+  })
+
   it('maps created_at to createdAt', () => {
     const result = mapRemoteMessage(makeRemoteMessage({ created_at: '2025-06-01T12:00:00Z' }))
     expect(result.createdAt).toBe('2025-06-01T12:00:00Z')
@@ -241,6 +252,12 @@ describe('mapLocalMessageToRemote', () => {
     expect(result.role).toBe(msg.role)
     expect(result.type).toBe(msg.type)
     expect(result.content).toBe(msg.content)
+  })
+
+  it('includes title when present', () => {
+    const msg = makeLocalMessage({ title: 'Clinical note' })
+    const result = mapLocalMessageToRemote(msg)
+    expect(result.title).toBe('Clinical note')
   })
 
   it('wraps attachments in { items: [...] }', () => {

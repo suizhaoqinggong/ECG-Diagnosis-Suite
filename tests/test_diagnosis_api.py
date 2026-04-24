@@ -279,6 +279,7 @@ class TestDiagnoseImage:
             assert data["confidence"] == 0.0
             assert data["severity"] is None
             assert data["icd_code"] is None
+            assert data["quality_warning"] == "fail"
             mock_service.predict_from_signal.assert_not_called()
 
             # Quality feedback present

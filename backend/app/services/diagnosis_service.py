@@ -16,6 +16,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type
+from uuid import uuid4
 
 import numpy as np
 from fastapi import HTTPException, UploadFile
@@ -165,6 +166,14 @@ def _timestamp() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
+def _build_upload_file_path(upload_dir: Path, safe_name: str) -> Path:
+    return upload_dir / f"{_timestamp()}_{uuid4().hex}_{safe_name}"
+
+
+def _build_upload_session_dir(upload_dir: Path) -> Path:
+    return upload_dir / f"session_{_timestamp()}_{uuid4().hex}"
+
+
 async def _create_diagnosis_response(
     *,
     file_reference: str,
@@ -266,7 +275,7 @@ class DiagnosisService:
         settings.ensure_runtime_dirs()
         upload_dir = settings.upload_dir_path
 
-        file_path = upload_dir / f"{_timestamp()}_{safe_name}"
+        file_path = _build_upload_file_path(upload_dir, safe_name)
 
         t0 = time.perf_counter()
         await self._run_in_thread(save_upload, file, file_path)
@@ -353,6 +362,7 @@ class DiagnosisService:
                 if quality_report.warning:
                     logger.warning("   %s", quality_report.warning)
 
+                quality_warning = "fail"
                 pipeline_warnings.insert(0, quality_report.warning or "信号质量不足")
 
                 # Build a minimal result without running the model
@@ -510,7 +520,7 @@ class DiagnosisService:
         t_total_start = time.perf_counter()
         settings.ensure_runtime_dirs()
         upload_dir = settings.upload_dir_path
-        temp_dir = upload_dir / f"session_{_timestamp()}"
+        temp_dir = _build_upload_session_dir(upload_dir)
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         dat_path = temp_dir / dat_safe

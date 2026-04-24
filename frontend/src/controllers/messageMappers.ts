@@ -14,6 +14,10 @@ export function normalizeMessageStatus(value?: string): ConversationMessage['sta
 export function mapRemoteMessage(message: MessageResponse): ConversationMessage {
   const content = message.content || ''
   const attachmentPayload = message.attachments as { items?: AttachedFileSummary[] } | null
+  const normalizedTitle =
+    typeof message.title === 'string' && message.title.trim().length > 0
+      ? message.title
+      : undefined
   return {
     id: message.id,
     role: message.role === 'assistant' ? 'assistant' : 'user',
@@ -24,6 +28,7 @@ export function mapRemoteMessage(message: MessageResponse): ConversationMessage 
       message.type === 'diagnosis'
         ? message.type
         : 'prompt',
+    title: normalizedTitle,
     content,
     createdAt: message.created_at,
     attachments: Array.isArray(attachmentPayload?.items)
@@ -55,6 +60,7 @@ export function mapLocalMessageToRemote(message: ConversationMessage): MessageCr
     id: message.id,
     role: message.role,
     type: message.type,
+    title: message.title ?? null,
     content: message.content,
     attachments: message.attachments ? { items: message.attachments } : null,
     result: (message.result as Record<string, unknown> | null | undefined) ?? null,

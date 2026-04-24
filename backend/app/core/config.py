@@ -113,11 +113,11 @@ class Settings(BaseSettings):
 
     @property
     def upload_dir_path(self) -> Path:
-        return self.resolve_backend_path(self.UPLOAD_DIR)
+        return self.resolve_project_path(self.UPLOAD_DIR)
 
     @property
     def report_output_dir_path(self) -> Path:
-        return self.resolve_backend_path(self.REPORT_OUTPUT_DIR)
+        return self.resolve_project_path(self.REPORT_OUTPUT_DIR)
 
     def get_model_checkpoint_path(self) -> Optional[Path]:
         candidates: list[Path] = []

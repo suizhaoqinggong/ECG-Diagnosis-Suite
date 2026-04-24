@@ -111,6 +111,16 @@ class TestEnvironment:
         )
         assert s.ENVIRONMENT == "production"
 
+    def test_runtime_dirs_resolve_from_project_root(self):
+        project_root = Path(__file__).resolve().parents[1]
+        s = Settings(
+            UPLOAD_DIR="data/uploads",
+            REPORT_OUTPUT_DIR="data/reports",
+        )
+
+        assert s.upload_dir_path == project_root / "data" / "uploads"
+        assert s.report_output_dir_path == project_root / "data" / "reports"
+
 
 # ===========================================================================
 # CORS configuration
