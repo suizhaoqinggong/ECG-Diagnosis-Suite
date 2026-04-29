@@ -5,6 +5,8 @@ Provides safe filename handling, extension validation, and file-size
 enforcement for the file upload endpoints.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile

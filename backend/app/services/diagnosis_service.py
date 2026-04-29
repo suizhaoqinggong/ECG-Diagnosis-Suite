@@ -9,6 +9,8 @@ can wire in patchable functions (enabling existing tests to keep targeting
 ``app.api.diagnosis.<name>`` without changes).
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import shutil

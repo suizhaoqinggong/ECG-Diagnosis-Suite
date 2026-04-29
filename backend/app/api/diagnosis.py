@@ -5,6 +5,8 @@ Thin route layer that validates inputs, delegates to DiagnosisService,
 and returns responses.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from typing import List

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Optional
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -57,11 +58,11 @@ class ChatMessage(Base):
     )
     role: Mapped[MessageRole] = mapped_column(String(20), nullable=False)
     type: Mapped[MessageType] = mapped_column(String(20), nullable=False)
-    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    attachments: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    result_schema_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    attachments: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    result: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    result_schema_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     status: Mapped[MessageStatus] = mapped_column(String(20), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
