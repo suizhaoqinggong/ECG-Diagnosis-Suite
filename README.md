@@ -12,10 +12,13 @@ ECG Diagnosis Suite is a FastAPI + React project for ECG image and signal classi
 
 ## Main Features
 
+- Unified health uploads: report PDFs (`.pdf`), report images (`.png`, `.jpg`, `.jpeg`), ECG images, and matched `.dat` + `.hea` pairs
 - ECG image upload: `.png`, `.jpg`, `.jpeg`
 - ECG signal upload: `.dat` + `.hea`
 - AI diagnosis with CardioFormer-based service
 - Conduction disorder detection endpoint
+- Health pipeline: job-based analysis (create + poll) routing uploads through classification, extraction, and report composition
+- ECG is the only V1 modality with raw AI analysis; non-ECG imaging is interpreted from the uploaded report only
 - Diagnosis history persistence
 - Local MySQL and Docker MySQL support
 
@@ -203,6 +206,8 @@ Primary endpoints:
 
 - `POST /api/diagnose`
 - `POST /api/diagnose-dat`
+- `POST /api/health/jobs`
+- `GET /api/health/jobs/{job_id}`
 - `GET /api/chat/sessions`
 - `POST /api/chat/sessions`
 - `POST /api/detect/conduction-disorder`
@@ -216,7 +221,10 @@ For request/response details, see [docs/api.md](/Users/azure/ECG-Diagnosis-Suite
 - This project is for research and engineering use, not clinical diagnosis.
 - Conversation history is managed through `/api/chat/*`; the legacy `/api/history` path has been removed from the backend.
 - The frontend PDF export button is still not wired to a backend endpoint.
+- The health pipeline uses stub extraction for report images; production deployments should configure an OpenAI-compatible vision provider via `OPENAI_HEALTH_VISION_MODEL` in `backend/.env`.
 - Automated verification lives in `tests/`, `backend/tests/`, and `frontend/src/__tests__/`.
+- Health-specific backend tests: `backend/tests/test_health_*.py` (6 files, 9 tests).
+- Frontend health tests: `frontend/src/__tests__/types/health.test.ts` (+ additional tests pending frontend health flow implementation).
 
 ## License
 
