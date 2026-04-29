@@ -1,26 +1,21 @@
 # ECG Diagnosis Suite
 
-ECG Diagnosis Suite is a FastAPI + React project for ECG image and signal classification. The current repository is an engineering-focused MVP: the end-to-end diagnosis flow is wired up, local MySQL support is configured, and Docker Compose now uses MySQL as the database service.
+AI-powered ECG diagnosis system with a FastAPI backend and React frontend. Users upload ECG images (PNG/JPG) or matched `.dat + .hea` signal pairs, the backend runs inference via a CardioFormer deep learning model, and results are displayed in a document-like conversation interface. Bilingual (Chinese-first, English support).
 
-## Current Status
+## Features
 
-- Frontend upload flow is available for ECG images and `.dat + .hea` pairs.
-- Backend diagnosis APIs, history persistence, and model loading are implemented.
-- Local development now uses `uv` for the Python environment and MySQL for persistence.
-- Docker Compose has been switched from PostgreSQL to MySQL.
-- PDF export code exists in the backend, but the frontend export action is still not connected.
-
-## Main Features
-
-- Unified health uploads: report PDFs (`.pdf`), report images (`.png`, `.jpg`, `.jpeg`), ECG images, and matched `.dat` + `.hea` pairs
-- ECG image upload: `.png`, `.jpg`, `.jpeg`
-- ECG signal upload: `.dat` + `.hea`
-- AI diagnosis with CardioFormer-based service
-- Conduction disorder detection endpoint
-- Health pipeline: job-based analysis (create + poll) routing uploads through classification, extraction, and report composition
-- ECG is the only V1 modality with raw AI analysis; non-ECG imaging is interpreted from the uploaded report only
-- Diagnosis history persistence
-- Local MySQL and Docker MySQL support
+- **Unified health uploads**: report PDFs (`.pdf`), report images (`.png`, `.jpg`, `.jpeg`), ECG images, and matched `.dat` + `.hea` signal pairs
+- **ECG image upload**: `.png`, `.jpg`, `.jpeg`
+- **ECG signal upload**: matched `.dat` + `.hea` pairs (PTB-XL / WFDB format)
+- **AI diagnosis**: CardioFormer-based classification across 5 diagnostic categories
+- **Health pipeline**: unified job-based analysis (create + poll) that routes uploads through classification, extraction, and report composition. ECG is the only V1 modality with raw AI analysis; non-ECG imaging is interpreted from the uploaded report only.
+- **Conduction disorder detection**: specialized endpoint with ResNet1D baseline
+- **Conversation UI**: document-like session management with chat history persisted to database
+- **Enhanced reports**: diagnosis-specific structured reports with severity, ICD codes, and recommendations
+- **User authentication**: JWT-based registration, login, logout, password change, and account deletion
+- **Security**: CORS enforcement, security headers (HSTS, X-Frame-Options, nosniff), rate limiting, error detail sanitization
+- **PDF export**: report generator available in backend (frontend button pending wiring)
+- **ECG preprocessing pipeline**: 6-stage image-to-signal conversion (grid suppression, centroid extraction, normalization, layout detection, skew correction, QC warnings)
 
 ## Tech Stack
 
@@ -31,36 +26,58 @@ ECG Diagnosis Suite is a FastAPI + React project for ECG image and signal classi
 - Vite
 - Tailwind CSS
 - Axios
+- Vitest + Testing Library
 
 ### Backend
 
 - FastAPI
-- SQLAlchemy
-- MySQL / SQLite / PostgreSQL-compatible configuration
-- PyTorch
-- OpenCV
+- SQLAlchemy (async) + Alembic migrations
+- MySQL (production) / SQLite (local development)
+- PyTorch + OpenCV
+- WFDB (ECG signal I/O)
+- Pytest
 
-### Environment
+### Infrastructure
 
-- `uv` for Python environment management
-- Homebrew MySQL for local development
-- Docker Compose for containerized deployment
+- Docker Compose (dev with MySQL, prod with nginx reverse proxy + optional TLS)
+- JWT authentication (python-jose + bcrypt)
 
 ## Repository Layout
 
 ```text
 ECG-Diagnosis-Suite/
-├── backend/                 # FastAPI backend
-│   ├── app/                 # API, config, DB models, services
-│   ├── ml/                  # ECG model and preprocessing code
-│   ├── .env.example         # Backend environment template
-│   └── requirements.txt     # Python dependencies
-├── frontend/                # React frontend
-├── models/                  # Model checkpoints and weight placeholders
-├── docs/                    # Development and deployment notes
-├── scripts/                 # Utility scripts
-├── docker-compose.yml       # Container orchestration
-└── start.sh                 # Local backend bootstrap helper
+├── backend/
+│   ├── app/                 # API routes, config, DB models, services
+│   ├── ml/                  # CardioFormer model, ECG preprocessing, detectors
+│   ├── tests/               # Backend unit + integration tests
+│   ├── alembic/             # Database migrations
+│   ├── Dockerfile
+│   ├── .env.example
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   │   ├── components/      # UI components
+│   │   ├── auth/            # Auth UI + state management
+│   │   ├── controllers/     # Workspace reducer + controller hooks
+│   │   ├── api/             # Backend API client layer
+│   │   ├── pages/           # Page components
+│   │   └── __tests__/       # Frontend tests
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── package.json
+├── tests/                   # Cross-cutting regression + security tests
+├── models/                  # Model checkpoints (best.ckpt)
+├── docs/                    # API reference, architecture, deployment guides
+├── data/                    # Uploads, reports, datasets
+├── deploy/                  # Nginx templates and TLS certs
+├── scripts/                 # Deployment and quick-start scripts
+├── docker-compose.yml              # Development stack
+├── docker-compose.prod.yml         # Production stack
+├── docker-compose.prod.tls.yml     # TLS overlay
+├── .env.production.example
+├── start.sh
+├── stop.sh
+└── deploy.sh
 ```
 
 ## Local Development
@@ -70,9 +87,9 @@ ECG-Diagnosis-Suite/
 - macOS / Linux
 - Node.js 18+
 - `uv`
-- MySQL 8+ or Homebrew MySQL
+- MySQL 8+ (or SQLite for quick start — set `DATABASE_URL=sqlite+aiosqlite:///./ecg_db.sqlite`)
 
-### 1. Backend Setup with `uv`
+### 1. Backend Setup
 
 ```bash
 cd backend
@@ -80,49 +97,38 @@ uv venv .venv --python 3.11
 uv pip install --python .venv/bin/python -r requirements.txt
 ```
 
-The repo now expects a backend virtual environment at `backend/.venv`.
+### 2. Configure Environment
 
-### 2. Configure Backend Environment
-
-Create or edit `backend/.env`:
+Copy `backend/.env.example` to `backend/.env` and adjust as needed:
 
 ```env
 DATABASE_URL=mysql+asyncmy://ecg:ecg123456@127.0.0.1:3306/ecg_db
 ```
 
-The repository already includes an example at [backend/.env.example](/Users/azure/ECG-Diagnosis-Suite/backend/.env.example).
+For local SQLite (no MySQL install needed):
 
-### 3. Start Local MySQL
+```env
+DATABASE_URL=sqlite+aiosqlite:///./ecg_db.sqlite
+```
 
-If you use Homebrew MySQL:
+### 3. Start MySQL (if using MySQL)
 
 ```bash
 brew services start mysql
-mysql -u root
-```
-
-Recommended local database and user:
-
-```sql
-CREATE DATABASE IF NOT EXISTS ecg_db CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-CREATE USER IF NOT EXISTS 'ecg'@'localhost' IDENTIFIED BY 'ecg123456';
-GRANT ALL PRIVILEGES ON ecg_db.* TO 'ecg'@'localhost';
-FLUSH PRIVILEGES;
+mysql -u root -e "
+  CREATE DATABASE IF NOT EXISTS ecg_db CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+  CREATE USER IF NOT EXISTS 'ecg'@'localhost' IDENTIFIED BY 'ecg123456';
+  GRANT ALL PRIVILEGES ON ecg_db.* TO 'ecg'@'localhost';
+  FLUSH PRIVILEGES;
+"
 ```
 
 ### 4. Start Backend
 
-From the project root:
-
 ```bash
 ./start.sh
-```
-
-Or manually:
-
-```bash
-cd backend
-.venv/bin/python -m uvicorn app.main:app --reload --port 8000
+# OR manually:
+cd backend && .venv/bin/python -m uvicorn app.main:app --reload --port 8000
 ```
 
 ### 5. Start Frontend
@@ -133,18 +139,11 @@ npm install
 npm run dev
 ```
 
-Frontend default address:
-
-- `http://localhost:5173`
-
-Backend default address:
-
-- `http://127.0.0.1:8000`
+- Frontend: `http://localhost:5173`
+- Backend: `http://127.0.0.1:8000`
 - Swagger UI: `http://127.0.0.1:8000/docs`
 
 ## Docker Compose
-
-The compose stack now uses MySQL instead of PostgreSQL.
 
 ```bash
 docker compose up --build
@@ -152,79 +151,97 @@ docker compose up --build
 
 Services:
 
-- `backend`: FastAPI service on port `8000`
-- `frontend`: static frontend on port `80`
-- `db`: MySQL 8.4 on port `3306`
+| Service | Port |
+|---|---|
+| backend (FastAPI) | 8000 |
+| frontend (nginx) | 80 |
+| db (MySQL 8.4) | 3306 |
+
+Default credentials: database `ecg_db`, user `ecg`, password `ecg123456`.
 
 ## Production Deployment
-
-The repository now includes a production stack for direct server deployment:
 
 ```bash
 cp .env.production.example .env.production
 bash deploy.sh
 ```
 
-Production compose file:
-
-- [docker-compose.prod.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.prod.yml)
-- [docker-compose.prod.tls.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.prod.tls.yml)
-
-Production deployment guide:
-
-- [docs/production-deployment.md](/Users/azure/ECG-Diagnosis-Suite/docs/production-deployment.md)
-
-The deployment script now waits for MySQL health checks, runs `alembic upgrade head`, and can optionally enable HTTPS termination in the bundled Nginx proxy on `443`.
-
-Container database credentials in [docker-compose.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.yml):
-
-- database: `ecg_db`
-- user: `ecg`
-- password: `ecg123456`
-- root password: `root123456`
+The production stack adds an nginx reverse proxy and health checks. Optional TLS termination is available via `docker-compose.prod.tls.yml`. See [docs/production-deployment.md](docs/production-deployment.md) for details.
 
 ## Model Checkpoints
 
-The backend searches CardioFormer checkpoints in this order:
+The backend searches for `best.ckpt` in this order:
 
-- `backend/models/checkpoints/best.ckpt`
-- `backend/models/weights/best.ckpt`
-- `models/checkpoints/best.ckpt`
-- `models/weights/best.ckpt`
+1. `backend/models/checkpoints/best.ckpt`
+2. `backend/models/weights/best.ckpt`
+3. `models/checkpoints/best.ckpt`
+4. `models/weights/best.ckpt`
 
-You can also override this with:
+Override with `MODEL_CHECKPOINT_PATH=/path/to/best.ckpt` in `backend/.env`.
 
-```env
-MODEL_CHECKPOINT_PATH=/absolute/path/to/best.ckpt
-```
-
-Production startup requires a real checkpoint. If no checkpoint is found, the backend exits instead of starting with random weights.
+Production startup requires a valid checkpoint — the backend exits on boot if none is found.
 
 ## API Surface
 
-Primary endpoints:
+### Auth
 
-- `POST /api/diagnose`
-- `POST /api/diagnose-dat`
-- `POST /api/health/jobs`
-- `GET /api/health/jobs/{job_id}`
-- `GET /api/chat/sessions`
-- `POST /api/chat/sessions`
-- `POST /api/detect/conduction-disorder`
-- `GET /health`
-- `GET /docs`
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login, returns JWT tokens |
+| POST | `/api/auth/refresh` | Refresh access token |
+| POST | `/api/auth/logout` | Logout, revoke refresh token |
+| GET | `/api/auth/me` | Get current user profile |
+| POST | `/api/auth/change-password` | Change password |
+| POST | `/api/auth/delete-account` | Delete account (requires password confirmation) |
 
-For request/response details, see [docs/api.md](/Users/azure/ECG-Diagnosis-Suite/docs/api.md).
+### Chat Sessions
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/chat/sessions` | List user sessions |
+| POST | `/api/chat/sessions` | Create session |
+| GET | `/api/chat/sessions/{id}` | Get session detail |
+| PATCH | `/api/chat/sessions/{id}` | Rename session |
+| DELETE | `/api/chat/sessions/{id}` | Delete session |
+| DELETE | `/api/chat/sessions` | Clear all sessions |
+| GET | `/api/chat/sessions/{id}/messages` | Get session messages |
+
+### Diagnosis
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/diagnose` | Upload ECG image for diagnosis |
+| POST | `/api/diagnose-dat` | Upload `.dat + .hea` pair for diagnosis |
+| POST | `/api/detect/conduction-disorder` | Conduction disorder detection |
+
+### Health Pipeline
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/api/health/jobs` | Create a health analysis job (PDF, image, or signal uploads) |
+| GET | `/api/health/jobs/{job_id}` | Poll job status and retrieve unified report result |
+
+### System
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/` | API info |
+| GET | `/health` | Health check with database status |
+| GET | `/docs` | Swagger UI |
+
+For detailed request/response schemas, see [docs/api.md](docs/api.md) or the live Swagger UI.
 
 ## Notes and Limitations
 
-- This project is for research and engineering use, not clinical diagnosis.
-- Conversation history is managed through `/api/chat/*`; the legacy `/api/history` path has been removed from the backend.
-- The frontend PDF export button is still not wired to a backend endpoint.
-- The health pipeline uses stub extraction for report images; production deployments should configure an OpenAI-compatible vision provider via `OPENAI_HEALTH_VISION_MODEL` in `backend/.env`.
-- Automated verification lives in `tests/`, `backend/tests/`, and `frontend/src/__tests__/`.
-- Health-specific backend tests: `backend/tests/test_health_*.py` (6 files, 9 tests).
-- Frontend health tests: `frontend/src/__tests__/types/health.test.ts` (+ additional tests pending frontend health flow implementation).
+- This project is for research and engineering demonstration, not clinical diagnosis.
+- The PDF export service exists in the backend but the frontend download button is not yet wired.
+- The legacy `/api/history` endpoint has been removed; session history is managed through `/api/chat/*`.
+- The health pipeline currently uses stub extraction for report images; production deployments should configure an OpenAI-compatible vision provider via `OPENAI_HEALTH_VISION_MODEL`.
+- Diagnosis endpoints support anonymous access; attaching a Bearer token writes results to the authenticated user's history.
+- Automated tests live in `tests/`, `backend/tests/`, and `frontend/src/__tests__/`.
+- Health-specific backend tests: `backend/tests/test_health_*.py` (6 files).
+- Frontend health tests: `frontend/src/__tests__/types/health.test.ts` (+ additional tests pending Task 5).
 
 ## License
 
