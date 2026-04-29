@@ -1,23 +1,22 @@
 import type { DiagnosisResultData } from '../api'
+import type { HealthAnalysisResult } from './health'
 
 export interface AttachedFileSummary {
   id: string
   name: string
   size: number
-  category: 'image' | 'dat' | 'hea'
+  category: 'report_pdf' | 'report_image' | 'ecg_image' | 'dat' | 'hea'
 }
 
 export interface ConversationMessage {
   id: string
   role: 'assistant' | 'user'
-  type: 'intro' | 'prompt' | 'guidance' | 'diagnosis'
+  type: 'intro' | 'prompt' | 'guidance' | 'diagnosis' | 'health_report'
   title?: string
   content: string
   createdAt: string
   attachments?: AttachedFileSummary[]
-  result?: DiagnosisResultData
-
-  // New fields for pending state management
+  result?: DiagnosisResultData | HealthAnalysisResult
   status?: 'pending' | 'completed' | 'error'
   errorDetail?: string
 }
