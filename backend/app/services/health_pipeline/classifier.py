@@ -30,8 +30,6 @@ class HealthAssetClassifier:
         ".jpg": AssetType.HEALTH_REPORT_IMAGE,
         ".jpeg": AssetType.HEALTH_REPORT_IMAGE,
         ".png": AssetType.HEALTH_REPORT_IMAGE,
-        ".bmp": AssetType.HEALTH_REPORT_IMAGE,
-        ".tiff": AssetType.HEALTH_REPORT_IMAGE,
     }
 
     def classify(self, filename: str, content_type: str) -> AssetType:
