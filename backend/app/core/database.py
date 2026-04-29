@@ -4,6 +4,7 @@ Database configuration and session management
 import logging
 import urllib.parse
 from dataclasses import dataclass
+from typing import Optional
 
 from sqlalchemy import MetaData, inspect
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DatabaseStatus:
     ready: bool = False
-    error: str | None = None
+    error: Optional[str] = None
 
 
 database_status = DatabaseStatus()
