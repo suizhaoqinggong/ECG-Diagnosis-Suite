@@ -1,5 +1,6 @@
 import type { ChatSession, ConversationMessage, AttachedFileSummary } from '@/types/chat'
 import type { DiagnosisResultData } from '@/api'
+import type { HealthAnalysisResult } from '@/types/health'
 import { STORAGE_VERSION } from '@/utils/storage'
 
 // ===== Types =====
@@ -49,7 +50,7 @@ export type WorkspaceAction =
   | { type: 'SUBMIT_STARTED'; messageId: string }
   | { type: 'SUBMIT_UPLOAD_PROGRESS'; progress: number }
   | { type: 'SUBMIT_PROCESSING' }
-  | { type: 'SUBMIT_SUCCEEDED'; result: DiagnosisResultData }
+  | { type: 'SUBMIT_SUCCEEDED'; result: DiagnosisResultData | HealthAnalysisResult }
   | { type: 'SUBMIT_FAILED'; error: string }
   | { type: 'SUBMIT_CANCEL' }
   | { type: 'SET_DRAG_ACTIVE'; active: boolean }
@@ -93,9 +94,12 @@ export function createId(): string {
 
 export function detectCategory(file: File): AttachedFileSummary['category'] | null {
   const lowerName = file.name.toLowerCase()
-  if (file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(lowerName)) return 'image'
+  if (lowerName.endsWith('.pdf')) return 'report_pdf'
   if (lowerName.endsWith('.dat')) return 'dat'
   if (lowerName.endsWith('.hea')) return 'hea'
+  if (file.type.startsWith('image/') || /\.(png|jpe?g)$/i.test(lowerName)) {
+    return 'report_image'
+  }
   return null
 }
 
@@ -121,7 +125,7 @@ export function createEmptySession(): ChatSession {
 export function calculatePairStatus(
   attachments: PendingAttachment[],
 ): WorkspaceState['composer']['pairStatus'] {
-  const hasImage = attachments.some(a => a.summary.category === 'image')
+  const hasImage = attachments.some(a => a.summary.category === 'report_image')
   const hasDat = attachments.some(a => a.summary.category === 'dat')
   const hasHea = attachments.some(a => a.summary.category === 'hea')
   if (hasImage) return 'image'
@@ -136,7 +140,7 @@ export function calculatePairStatus(
 
 export function validateAttachments(attachments: PendingAttachment[]): string[] {
   const errors: string[] = []
-  const hasImage = attachments.some(a => a.summary.category === 'image')
+  const hasImage = attachments.some(a => a.summary.category === 'report_image')
   const hasDat = attachments.some(a => a.summary.category === 'dat')
   const hasHea = attachments.some(a => a.summary.category === 'hea')
 
@@ -251,7 +255,7 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           continue
         }
         const category = detectCategory(file)
-        if (!category) {
+        if (category === null) {
           errors.push(`Unsupported file type: ${file.name}`)
           continue
         }
@@ -263,15 +267,15 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         })
       }
 
-      const existingNonImage = state.composer.attachments.filter(a => a.summary.category !== 'image')
-      const hasNewImage = newAttachments.some(a => a.summary.category === 'image')
+      const existingNonImage = state.composer.attachments.filter(a => a.summary.category !== 'report_image')
+      const hasNewImage = newAttachments.some(a => a.summary.category === 'report_image')
 
       let merged: PendingAttachment[]
       const replacedNames: string[] = []
       if (hasNewImage) {
         const existingNames = state.composer.attachments.map(a => a.summary.name)
         if (existingNames.length > 0) replacedNames.push(...existingNames)
-        const imageAttachment = newAttachments.find(a => a.summary.category === 'image')!
+        const imageAttachment = newAttachments.find(a => a.summary.category === 'report_image')!
         merged = [imageAttachment]
       } else {
         const byCategory = new Map(

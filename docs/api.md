@@ -78,6 +78,25 @@
 - `GET /api/chat/sessions/{session_id}/messages`
 - `POST /api/chat/sessions/{session_id}/messages`
 
+## 健康分析接口
+
+### `POST /api/health/jobs`
+
+创建统一的健康分析任务。
+
+- Content-Type: `multipart/form-data`
+- 字段：可重复的 `files`（支持 `.pdf`、`.png`、`.jpg`、`.jpeg`、`.dat`、`.hea`），可选的 `note`（临床备注），可选的 `session_id`
+- 鉴权：可匿名；带 Bearer token 时结果会关联到当前用户
+- 返回 `queued` 状态的任务 ID
+
+### `GET /api/health/jobs/{job_id}`
+
+轮询健康分析任务的状态与结果。
+
+- 返回 `queued`、`processing`、`completed` 或 `failed` 状态
+- `completed` 时附带 `result`（含 `summary`、`overallRisk`、`findings`、`nextSteps`、`limitations`、`disclaimer`，以及可选的 `ecgResult`）
+- `failed` 时附带 `error` 字段说明失败原因
+
 ## 认证接口
 
 认证接口前缀为 `/api/auth`：

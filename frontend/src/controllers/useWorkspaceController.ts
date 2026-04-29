@@ -1,11 +1,11 @@
 import { useReducer, useCallback, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { diagnosisApi } from '@/api'
-import type { DiagnosisResultData } from '@/api'
 import { extractErrorMessage } from '@/api/client'
 import { chatApi } from '@/api/chat'
+import { healthApi } from '@/api/health'
 import { useAuth } from '@/auth/AuthProvider'
 import type { ChatSession, ConversationMessage } from '@/types/chat'
+import type { HealthAnalysisResult } from '@/types/health'
 import { StorageManager } from '@/utils/storage'
 
 // Re-export everything that consumers and tests import
@@ -381,7 +381,7 @@ export function useWorkspaceController() {
     const hasAttachments = attachments.length > 0
 
     if (!hasDraft && !hasAttachments) {
-      toast.error('Add a note or attach an ECG study to continue.')
+      toast.error('Add a note or attach health files to continue.')
       return
     }
 
@@ -399,7 +399,7 @@ export function useWorkspaceController() {
         id: createId(),
         role: 'assistant',
         type: 'guidance',
-        content: 'I can keep notes and findings in this workspace, but diagnosis still starts with an ECG upload. Attach a PNG/JPG image or a matched .dat + .hea pair when you are ready.',
+        content: 'I can keep notes and findings in this workspace, but analysis still starts with an upload. Attach a PDF, PNG, JPG, or a matched .dat + .hea pair when you are ready.',
         createdAt: new Date().toISOString(),
         status: 'completed',
       }
@@ -430,8 +430,8 @@ export function useWorkspaceController() {
       id: createId(),
       role: 'user',
       type: 'prompt',
-      title: attachments.length > 0 ? 'Submitted ECG for review' : 'Clinical note',
-      content: draft || 'Please analyze the attached ECG study.',
+      title: attachments.length > 0 ? 'Submitted health files for review' : 'Clinical note',
+      content: draft || 'Please analyze the attached health files.',
       createdAt: new Date().toISOString(),
       attachments: attachments.map(attachment => attachment.summary),
       status: 'completed',
@@ -442,7 +442,7 @@ export function useWorkspaceController() {
     const pendingMessage: ConversationMessage = {
       id: pendingMessageId,
       role: 'assistant',
-      type: 'diagnosis',
+      type: 'health_report',
       content: 'Analyzing...',
       createdAt: new Date().toISOString(),
       status: 'pending',
@@ -460,37 +460,32 @@ export function useWorkspaceController() {
         await chatApi.createMessages(activeSession.id, [mapLocalMessageToRemote(userMessage)])
       }
 
-      const imageFile = attachments.find(attachment => attachment.summary.category === 'image')?.file
-      const datFile = attachments.find(attachment => attachment.summary.category === 'dat')?.file
-      const heaFile = attachments.find(attachment => attachment.summary.category === 'hea')?.file
+      const files = attachments.map(attachment => attachment.file)
+      const job = await healthApi.createJob(files, composerRef.current.draft, activeSession.id)
+      dispatch({ type: 'UPDATE_MESSAGE', sessionId: activeSession.id, messageId: pendingMessageId, updates: { type: 'health_report' } })
 
-      let result: DiagnosisResultData
-      if (imageFile) {
-        result = await diagnosisApi.diagnoseImage(
-          imageFile,
-          progress => {
-            if (!currentAbortController.signal.aborted) {
-              dispatch({ type: 'SUBMIT_UPLOAD_PROGRESS', progress })
-            }
-          },
-          currentAbortController.signal,
-        )
-      } else if (datFile && heaFile) {
-        result = await diagnosisApi.diagnoseDatPair(
-          datFile,
-          heaFile,
-          progress => {
-            if (!currentAbortController.signal.aborted) {
-              dispatch({ type: 'SUBMIT_UPLOAD_PROGRESS', progress })
-            }
-          },
-          currentAbortController.signal,
-        )
-      } else {
-        throw new Error('Invalid file combination')
+      let latestResult: HealthAnalysisResult | undefined
+      const MAX_POLLS = 120 // 3 minutes at 1.5s intervals
+      let pollCount = 0
+      for (;;) {
+        if (currentAbortController.signal.aborted) return
+        const latest = await healthApi.getJob(job.id)
+        if (latest.status === 'completed') {
+          latestResult = latest.result ?? undefined
+          break
+        }
+        if (latest.status === 'failed') {
+          throw new Error(latest.error ?? 'Health analysis failed')
+        }
+        pollCount += 1
+        if (pollCount >= MAX_POLLS) {
+          throw new Error('Analysis timed out. Please try again.')
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1500))
       }
 
       if (!currentAbortController.signal.aborted) {
+        const result = latestResult!
         const completedMessage: Partial<ConversationMessage> = {
           status: 'completed',
           content: 'Analysis complete',
@@ -507,7 +502,7 @@ export function useWorkspaceController() {
         dispatch({ type: 'CLEAR_COMPOSER' })
 
         if (auth.user) {
-          const remoteDiagnosisMessage: ConversationMessage = {
+          const remoteHealthMessage: ConversationMessage = {
             ...pendingMessage,
             ...completedMessage,
             status: 'completed',
@@ -515,11 +510,11 @@ export function useWorkspaceController() {
           }
           await chatApi.createMessages(
             activeSession.id,
-            [mapLocalMessageToRemote(remoteDiagnosisMessage)],
+            [mapLocalMessageToRemote(remoteHealthMessage)],
           )
         }
 
-        toast.success('Diagnosis complete.')
+        toast.success('Analysis complete.')
       }
     } catch (error: unknown) {
       if (currentAbortController.signal.aborted) return

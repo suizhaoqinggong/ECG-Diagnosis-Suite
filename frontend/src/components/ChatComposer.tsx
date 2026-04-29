@@ -8,8 +8,7 @@ interface ChatComposerProps {
   attachedFiles: AttachedFileSummary[]
   isLoading: boolean
   onDraftChange: (value: string) => void
-  onImageFilesSelected: (files: File[] | null) => void
-  onDataFilesSelected: (files: File[] | null) => void
+  onAttachFiles: (files: File[] | null) => void
   onRemoveFile: (fileId: string) => void
   onSubmit: () => void
 }
@@ -47,8 +46,7 @@ const ChatComposer = memo(function ChatComposer({
   attachedFiles,
   isLoading,
   onDraftChange,
-  onImageFilesSelected,
-  onDataFilesSelected,
+  onAttachFiles,
   onRemoveFile,
   onSubmit,
 }: ChatComposerProps) {
@@ -65,7 +63,7 @@ const ChatComposer = memo(function ChatComposer({
         event.preventDefault()
         const ext = item.type.split('/')[1] || 'png'
         const file = new File([blob], `clipboard-${Date.now()}.${ext}`, { type: item.type })
-        onImageFilesSelected([file])
+        onAttachFiles([file])
         return
       }
     }
@@ -78,15 +76,9 @@ const ChatComposer = memo(function ChatComposer({
     }
   }
 
-  const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files ? Array.from(event.target.files) : null
-    onImageFilesSelected(files)
-    event.target.value = ''
-  }
-
   const handleDataChange = (event: ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : null
-    onDataFilesSelected(files)
+    onAttachFiles(files)
     event.target.value = ''
   }
 
@@ -127,7 +119,7 @@ const ChatComposer = memo(function ChatComposer({
             onPaste={handlePaste}
             disabled={isLoading}
             rows={4}
-            placeholder="Describe the study, add a note for this ECG, or attach files to begin analysis."
+            placeholder="Describe the study, add a note, or attach health files to begin analysis."
             className="reading-copy min-h-[120px] w-full resize-none border-0 bg-transparent px-1 text-[1.05rem] leading-8 text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)] disabled:cursor-not-allowed"
           />
 
@@ -135,23 +127,11 @@ const ChatComposer = memo(function ChatComposer({
             <div className="flex flex-wrap gap-2">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.6)] px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink)]">
                 <AttachmentIcon />
-                Attach image
-                <input
-                  type="file"
-                  accept=".png,.jpg,.jpeg,image/*"
-                  className="hidden"
-                  onChange={handleImageChange}
-                  disabled={isLoading}
-                />
-              </label>
-
-              <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.6)] px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink)]">
-                <AttachmentIcon />
-                Attach .dat + .hea
+                Attach health files
                 <input
                   type="file"
                   multiple
-                  accept=".dat,.hea,application/octet-stream,text/plain"
+                  accept=".pdf,.png,.jpg,.jpeg,.dat,.hea,image/*,application/pdf"
                   className="hidden"
                   onChange={handleDataChange}
                   disabled={isLoading}
@@ -161,7 +141,7 @@ const ChatComposer = memo(function ChatComposer({
 
             <div className="flex items-center justify-between gap-4">
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-muted)]">
-                {isLoading ? 'Analyzing ECG data...' : 'Ctrl/Cmd + Enter to send'}
+                {isLoading ? 'Analyzing health data...' : 'Ctrl/Cmd + Enter to send'}
               </p>
               <button
                 type="button"
@@ -177,7 +157,7 @@ const ChatComposer = memo(function ChatComposer({
         </div>
 
         <p className="mt-3 px-1 text-sm text-[var(--ink-muted)]">
-          Supports PNG, JPG, JPEG, or a matched `.dat` + `.hea` pair. Text notes stay in the conversation for context.
+          Supports PDF, PNG, JPG, JPEG, or a matched `.dat` + `.hea` pair. Text notes stay in the conversation for context.
         </p>
       </div>
     </div>

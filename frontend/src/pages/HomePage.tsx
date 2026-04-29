@@ -69,12 +69,7 @@ export default function HomePage() {
     [dispatch],
   )
 
-  const handleImageFilesSelected = useCallback(
-    (files: File[] | null) => { if (files) dispatch({ type: 'ADD_FILES', files }) },
-    [dispatch],
-  )
-
-  const handleDataFilesSelected = useCallback(
+  const handleAttachFiles = useCallback(
     (files: File[] | null) => { if (files) dispatch({ type: 'ADD_FILES', files }) },
     [dispatch],
   )
@@ -118,10 +113,10 @@ export default function HomePage() {
           <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-[var(--bg)]/80 backdrop-blur-sm">
             <div className="rounded-[30px] border-2 border-dashed border-[var(--accent)] px-12 py-8 text-center">
               <p className="reading-copy text-xl text-[var(--accent)]">
-                Drop ECG files here
+                Drop health files here
               </p>
               <p className="mt-2 text-sm text-[var(--ink-muted)]">
-                PNG/JPG image or .dat + .hea pair
+                PDF, PNG/JPG image or .dat + .hea pair
               </p>
             </div>
           </div>
@@ -134,13 +129,13 @@ export default function HomePage() {
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-                  Writing-first interface
+                  Health Analysis Workspace
                 </p>
                 <h2 className="reading-copy mt-2 text-3xl tracking-tight text-[var(--ink)] md:text-[2.8rem]">
                   {activeSession.title}
                 </h2>
                 <p className="mt-3 max-w-2xl text-base leading-7 text-[var(--ink-soft)]">
-                  A document-style conversation for ECG interpretation, designed to read like notes rather than chat bubbles.
+                  A document-style conversation for unified health report analysis, designed to read like notes rather than chat bubbles.
                 </p>
               </div>
               <div className="flex items-center gap-3">
@@ -193,8 +188,7 @@ export default function HomePage() {
           attachedFiles={state.composer.attachments.map(a => a.summary)}
           isLoading={isSubmitting}
           onDraftChange={handleDraftChange}
-          onImageFilesSelected={handleImageFilesSelected}
-          onDataFilesSelected={handleDataFilesSelected}
+          onAttachFiles={handleAttachFiles}
           onRemoveFile={handleRemoveFile}
           onSubmit={submit}
         />

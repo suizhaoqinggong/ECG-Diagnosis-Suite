@@ -48,7 +48,7 @@ function makeHeaAttachment(name = 'record.hea') {
 function makeImageAttachment(name = 'ecg.png') {
   const file = makeImageFile(name)
   const id = createId()
-  return { id, file, summary: { id, name, size: file.size, category: 'image' as const } }
+  return { id, file, summary: { id, name, size: file.size, category: 'report_image' as const } }
 }
 
 const sampleResult: DiagnosisResultData = {
@@ -340,7 +340,7 @@ describe('workspaceReducer', () => {
     const file = makeImageFile()
     const next = workspaceReducer(s, { type: 'ADD_FILES', files: [file] })
     expect(next.composer.attachments).toHaveLength(1)
-    expect(next.composer.attachments[0].summary.category).toBe('image')
+    expect(next.composer.attachments[0].summary.category).toBe('report_image')
     expect(next.composer.pairStatus).toBe('image')
   })
 
@@ -387,7 +387,7 @@ describe('workspaceReducer', () => {
 
     const withImage = workspaceReducer(withPair, { type: 'ADD_FILES', files: [makeImageFile()] })
     expect(withImage.composer.attachments).toHaveLength(1)
-    expect(withImage.composer.attachments[0].summary.category).toBe('image')
+    expect(withImage.composer.attachments[0].summary.category).toBe('report_image')
     expect(withImage.composer.replacedFileNames).toHaveLength(2)
   })
 
@@ -424,14 +424,14 @@ describe('workspaceReducer', () => {
 
 describe('detectCategory', () => {
   it('detects image files by MIME type', () => {
-    expect(detectCategory(makeFile('photo.png', 'image/png'))).toBe('image')
-    expect(detectCategory(makeFile('photo.jpg', 'image/jpeg'))).toBe('image')
+    expect(detectCategory(makeFile('photo.png', 'image/png'))).toBe('report_image')
+    expect(detectCategory(makeFile('photo.jpg', 'image/jpeg'))).toBe('report_image')
   })
 
   it('detects image files by extension', () => {
-    expect(detectCategory(makeFile('photo.png', ''))).toBe('image')
-    expect(detectCategory(makeFile('photo.jpg', ''))).toBe('image')
-    expect(detectCategory(makeFile('photo.jpeg', ''))).toBe('image')
+    expect(detectCategory(makeFile('photo.png', ''))).toBe('report_image')
+    expect(detectCategory(makeFile('photo.jpg', ''))).toBe('report_image')
+    expect(detectCategory(makeFile('photo.jpeg', ''))).toBe('report_image')
   })
 
   it('detects dat files', () => {
@@ -444,7 +444,7 @@ describe('detectCategory', () => {
 
   it('returns null for unsupported types', () => {
     expect(detectCategory(makeFile('data.csv', 'text/csv'))).toBeNull()
-    expect(detectCategory(makeFile('doc.pdf', 'application/pdf'))).toBeNull()
+    expect(detectCategory(makeFile('doc.pdf', 'application/pdf'))).toBe('report_pdf')
   })
 })
 

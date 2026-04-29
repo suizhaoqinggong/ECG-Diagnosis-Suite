@@ -17,7 +17,7 @@ LeadQuality = Literal["good", "warn", "poor", "fail"]
 OverallQuality = Literal["pass", "warn", "fail"]
 
 
-@dataclass(slots=True)
+@dataclass
 class PipelineIssue:
     """Represents an issue or warning in the processing pipeline."""
 
@@ -29,7 +29,7 @@ class PipelineIssue:
     details: dict[str, Any] = field(default_factory=dict)
 
 
-@dataclass(slots=True)
+@dataclass
 class DecodedImage:
     """Result of safe image decoding."""
 
@@ -42,7 +42,7 @@ class DecodedImage:
     warnings: list[PipelineIssue] = field(default_factory=list)
 
 
-@dataclass(slots=True)
+@dataclass
 class ValidationMetrics:
     """Metrics collected during image validation."""
 
@@ -53,7 +53,7 @@ class ValidationMetrics:
     foreground_cols_ratio: float
 
 
-@dataclass(slots=True)
+@dataclass
 class ValidationResult:
     """Result of ECG image validation."""
 
@@ -62,7 +62,7 @@ class ValidationResult:
     issues: list[PipelineIssue] = field(default_factory=list)
 
 
-@dataclass(slots=True)
+@dataclass
 class LeadQC:
     """Quality control metrics for a single ECG lead."""
 
@@ -78,7 +78,7 @@ class LeadQC:
     warnings: list[str] = field(default_factory=list)
 
 
-@dataclass(slots=True)
+@dataclass
 class ExtractionResult:
     """Result of ECG signal extraction from image."""
 

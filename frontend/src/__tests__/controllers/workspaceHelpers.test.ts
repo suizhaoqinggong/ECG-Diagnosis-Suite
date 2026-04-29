@@ -262,7 +262,7 @@ describe('mapLocalMessageToRemote', () => {
 
   it('wraps attachments in { items: [...] }', () => {
     const msg = makeLocalMessage({
-      attachments: [{ id: 'a1', name: 'ecg.png', size: 1024, category: 'image' }],
+      attachments: [{ id: 'a1', name: 'ecg.png', size: 1024, category: 'report_image' }],
     })
     const result = mapLocalMessageToRemote(msg)
     expect(result.attachments).toEqual({ items: msg.attachments })

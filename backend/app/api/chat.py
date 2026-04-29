@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -62,11 +62,11 @@ class MessageCreate(BaseModel):
     )
     role: MessageRole
     type: MessageType
-    title: str | None = None
+    title: Optional[str] = None
     content: str
-    attachments: dict | None = None
-    result: dict | None = None
-    result_schema_version: int | None = None
+    attachments: Optional[dict] = None
+    result: Optional[dict] = None
+    result_schema_version: Optional[int] = None
     status: MessageStatus
 
 
@@ -78,10 +78,10 @@ class MessageResponse(BaseModel):
     id: str
     role: MessageRole
     type: MessageType
-    title: str | None
+    title: Optional[str]
     content: str
-    attachments: dict | None
-    result: dict | None
+    attachments: Optional[dict]
+    result: Optional[dict]
     status: MessageStatus
     created_at: datetime
 
@@ -210,7 +210,7 @@ async def delete_all_sessions(
 async def list_messages(
     session_id: str,
     current_user: Annotated[User, Depends(get_current_user)],
-    cursor: str | None = Query(default=None),
+    cursor: Optional[str] = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
 ) -> list[ChatMessage]:
     """List messages for a session with cursor-based pagination."""

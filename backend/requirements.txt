@@ -23,8 +23,9 @@ Pillow==10.2.0
 wfdb==4.1.0
 scipy==1.12.0
 
-# PDF生成
+# PDF生成与处理
 reportlab==4.1.0
+pypdf==4.2.0
 
 # 工具库
 aiofiles==23.2.1

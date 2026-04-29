@@ -1,7 +1,10 @@
 import { memo } from 'react'
 import type { ConversationMessage as ConversationMessageType } from '@/types/chat'
+import type { HealthAnalysisResult } from '@/types/health'
+import type { DiagnosisResultData } from '@/api'
 import { formatConversationTimestamp } from '@/utils'
 import DiagnosisReport from './DiagnosisReport'
+import HealthReport from './HealthReport'
 
 interface ConversationMessageProps {
   message: ConversationMessageType
@@ -50,7 +53,7 @@ function PendingIndicator({ phase, progress }: { phase: 'uploading' | 'processin
         </svg>
       </div>
       <p className="reading-copy text-lg text-[var(--ink-soft)]">
-        AI is analyzing ECG data...
+        AI is analyzing health data...
       </p>
     </div>
   )
@@ -78,7 +81,7 @@ function ErrorMessage({ errorDetail, onRetry }: { errorDetail: string; onRetry?:
 }
 
 function ConversationMessage({ message, submissionPhase, uploadProgress, onRetry, onCancel }: ConversationMessageProps) {
-  const roleLabel = message.role === 'assistant' ? 'ECG Analyst' : 'You'
+  const roleLabel = message.role === 'assistant' ? 'Health Analyst' : 'You'
 
   return (
     <article className="border-b border-[var(--border)] py-10 last:border-b-0 md:py-14">
@@ -132,8 +135,10 @@ function ConversationMessage({ message, submissionPhase, uploadProgress, onRetry
             </div>
           ) : message.status === 'error' ? (
             <ErrorMessage errorDetail={message.errorDetail || 'Unknown error'} onRetry={onRetry} />
-          ) : message.result ? (
-            <DiagnosisReport result={message.result} />
+          ) : message.type === 'health_report' && message.result ? (
+            <HealthReport result={message.result as HealthAnalysisResult} />
+          ) : message.type === 'diagnosis' && message.result ? (
+            <DiagnosisReport result={message.result as DiagnosisResultData} />
           ) : null}
         </div>
       </div>
