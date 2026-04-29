@@ -1,5 +1,6 @@
 import type { ChatSession, ConversationMessage, AttachedFileSummary } from '@/types/chat'
 import type { DiagnosisResultData } from '@/api'
+import type { HealthAnalysisResult } from '@/types/health'
 import { STORAGE_VERSION } from '@/utils/storage'
 
 // ===== Types =====
@@ -49,7 +50,7 @@ export type WorkspaceAction =
   | { type: 'SUBMIT_STARTED'; messageId: string }
   | { type: 'SUBMIT_UPLOAD_PROGRESS'; progress: number }
   | { type: 'SUBMIT_PROCESSING' }
-  | { type: 'SUBMIT_SUCCEEDED'; result: DiagnosisResultData }
+  | { type: 'SUBMIT_SUCCEEDED'; result: DiagnosisResultData | HealthAnalysisResult }
   | { type: 'SUBMIT_FAILED'; error: string }
   | { type: 'SUBMIT_CANCEL' }
   | { type: 'SET_DRAG_ACTIVE'; active: boolean }
@@ -124,13 +125,13 @@ export function createEmptySession(): ChatSession {
 export function calculatePairStatus(
   attachments: PendingAttachment[],
 ): WorkspaceState['composer']['pairStatus'] {
-  const hasImage = attachments.some(a => a.summary.category === AttachmentCategory.ECG_IMAGE)
-  const hasDat = attachments.some(a => a.summary.category === AttachmentCategory.ECG_SIGNAL)
-  const hasHea = attachments.some(a => a.summary.category === AttachmentCategory.ECG_SIGNAL)
+  const hasImage = attachments.some(a => a.summary.category === 'report_image')
+  const hasDat = attachments.some(a => a.summary.category === 'dat')
+  const hasHea = attachments.some(a => a.summary.category === 'hea')
   if (hasImage) return 'image'
   if (hasDat && hasHea) {
-    const datName = attachments.find(a => a.summary.category === AttachmentCategory.ECG_SIGNAL)!.file.name.replace(/\.dat$/i, '')
-    const heaName = attachments.find(a => a.summary.category === AttachmentCategory.ECG_SIGNAL)!.file.name.replace(/\.hea$/i, '')
+    const datName = attachments.find(a => a.summary.category === 'dat')!.file.name.replace(/\.dat$/i, '')
+    const heaName = attachments.find(a => a.summary.category === 'hea')!.file.name.replace(/\.hea$/i, '')
     return datName === heaName ? 'matched' : 'mismatch'
   }
   if (hasDat || hasHea) return 'partial'
@@ -139,9 +140,9 @@ export function calculatePairStatus(
 
 export function validateAttachments(attachments: PendingAttachment[]): string[] {
   const errors: string[] = []
-  const hasImage = attachments.some(a => a.summary.category === AttachmentCategory.ECG_IMAGE)
-  const hasDat = attachments.some(a => a.summary.category === AttachmentCategory.ECG_SIGNAL)
-  const hasHea = attachments.some(a => a.summary.category === AttachmentCategory.ECG_SIGNAL)
+  const hasImage = attachments.some(a => a.summary.category === 'report_image')
+  const hasDat = attachments.some(a => a.summary.category === 'dat')
+  const hasHea = attachments.some(a => a.summary.category === 'hea')
 
   if (hasImage && (hasDat || hasHea)) {
     errors.push('Image analysis accepts a single ECG image. Remove the data files.')
@@ -153,8 +154,8 @@ export function validateAttachments(attachments: PendingAttachment[]): string[] 
     errors.push('Signal analysis needs both files in the pair. Attach one .dat file and the matching .hea header.')
   }
   if (hasDat && hasHea) {
-    const datName = attachments.find(a => a.summary.category === AttachmentCategory.ECG_SIGNAL)!.file.name.replace(/\.dat$/i, '')
-    const heaName = attachments.find(a => a.summary.category === AttachmentCategory.ECG_SIGNAL)!.file.name.replace(/\.hea$/i, '')
+    const datName = attachments.find(a => a.summary.category === 'dat')!.file.name.replace(/\.dat$/i, '')
+    const heaName = attachments.find(a => a.summary.category === 'hea')!.file.name.replace(/\.hea$/i, '')
     if (datName !== heaName) {
       errors.push('The .dat and .hea filenames need to match exactly before upload.')
     }
@@ -253,8 +254,8 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
           errors.push(`${file.name} exceeds the 10MB limit.`)
           continue
         }
-        const category = detectCategory(file.name)
-        if (category === AttachmentCategory.OTHER) {
+        const category = detectCategory(file)
+        if (category === null) {
           errors.push(`Unsupported file type: ${file.name}`)
           continue
         }
@@ -266,15 +267,15 @@ export function workspaceReducer(state: WorkspaceState, action: WorkspaceAction)
         })
       }
 
-      const existingNonImage = state.composer.attachments.filter(a => a.summary.category !== AttachmentCategory.ECG_IMAGE)
-      const hasNewImage = newAttachments.some(a => a.summary.category === AttachmentCategory.ECG_IMAGE)
+      const existingNonImage = state.composer.attachments.filter(a => a.summary.category !== 'report_image')
+      const hasNewImage = newAttachments.some(a => a.summary.category === 'report_image')
 
       let merged: PendingAttachment[]
       const replacedNames: string[] = []
       if (hasNewImage) {
         const existingNames = state.composer.attachments.map(a => a.summary.name)
         if (existingNames.length > 0) replacedNames.push(...existingNames)
-        const imageAttachment = newAttachments.find(a => a.summary.category === AttachmentCategory.ECG_IMAGE)!
+        const imageAttachment = newAttachments.find(a => a.summary.category === 'report_image')!
         merged = [imageAttachment]
       } else {
         const byCategory = new Map(

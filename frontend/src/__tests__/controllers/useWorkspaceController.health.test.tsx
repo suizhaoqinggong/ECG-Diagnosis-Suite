@@ -62,7 +62,7 @@ Object.defineProperty(globalThis, 'localStorage', {
   },
 })
 
-describe('useWorkspaceController retry', () => {
+describe('useWorkspaceController health flow', () => {
   beforeEach(() => {
     storageState.clear()
     localStorage.clear()
@@ -73,7 +73,8 @@ describe('useWorkspaceController retry', () => {
     getJobMock.mockReset()
   })
 
-  it('retries with the last uploaded file even after composer attachments are cleared', async () => {
+  it('calls healthApi.createJob and polls getJob until completed', async () => {
+    const jobResponse = { id: 'job-1', status: 'queued', message: 'Queued' }
     const completedResult = {
       id: 'job-1',
       status: 'completed' as const,
@@ -90,10 +91,9 @@ describe('useWorkspaceController retry', () => {
       },
     }
 
-    createJobMock
-      .mockRejectedValueOnce(new Error('Network error'))
-      .mockResolvedValueOnce({ id: 'job-2', status: 'queued', message: 'Queued' })
+    createJobMock.mockResolvedValueOnce(jobResponse)
     getJobMock
+      .mockResolvedValueOnce({ id: 'job-1', status: 'processing', message: 'Processing' })
       .mockResolvedValueOnce(completedResult)
 
     const { result } = renderHook(() => useWorkspaceController())
@@ -102,7 +102,7 @@ describe('useWorkspaceController retry', () => {
       expect(result.current.activeSession).not.toBeNull()
     })
 
-    const file = new File(['ecg'], 'retry.png', { type: 'image/png' })
+    const file = new File(['x'], 'report.pdf', { type: 'application/pdf' })
 
     act(() => {
       result.current.dispatch({ type: 'ADD_FILES', files: [file] })
@@ -114,20 +114,38 @@ describe('useWorkspaceController retry', () => {
 
     await waitFor(() => {
       expect(createJobMock).toHaveBeenCalledTimes(1)
-      expect(result.current.state.submission.canRetry).toBe(true)
+      expect(getJobMock).toHaveBeenCalledTimes(2)
+      expect(result.current.state.submission.phase).toBe('succeeded')
+    })
+  })
+
+  it('sets error state when health job fails', async () => {
+    const jobResponse = { id: 'job-2', status: 'queued', message: 'Queued' }
+
+    createJobMock.mockResolvedValueOnce(jobResponse)
+    getJobMock
+      .mockResolvedValueOnce({ id: 'job-2', status: 'processing', message: 'Processing' })
+      .mockResolvedValueOnce({ id: 'job-2', status: 'failed', message: 'Failed', error: 'Server error' })
+
+    const { result } = renderHook(() => useWorkspaceController())
+
+    await waitFor(() => {
+      expect(result.current.activeSession).not.toBeNull()
     })
 
+    const file = new File(['x'], 'bad.pdf', { type: 'application/pdf' })
+
     act(() => {
-      result.current.dispatch({ type: 'CLEAR_COMPOSER' })
+      result.current.dispatch({ type: 'ADD_FILES', files: [file] })
     })
 
     await act(async () => {
-      await result.current.retry()
+      await result.current.submit()
     })
 
     await waitFor(() => {
-      expect(createJobMock).toHaveBeenCalledTimes(2)
-      expect(result.current.state.submission.canRetry).toBe(false)
+      expect(createJobMock).toHaveBeenCalledTimes(1)
+      expect(result.current.state.submission.phase).toBe('failed')
     })
   })
 })

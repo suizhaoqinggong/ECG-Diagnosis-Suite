@@ -7,8 +7,7 @@ const defaults = {
   attachedFiles: [],
   isLoading: false,
   onDraftChange: vi.fn(),
-  onImageFilesSelected: vi.fn(),
-  onDataFilesSelected: vi.fn(),
+  onAttachFiles: vi.fn(),
   onRemoveFile: vi.fn(),
   onSubmit: vi.fn(),
 }
@@ -18,10 +17,10 @@ beforeEach(() => {
 })
 
 function pasteImage(imageType = 'image/png') {
-  const onImageFilesSelected = vi.fn()
-  render(<ChatComposer {...defaults} onImageFilesSelected={onImageFilesSelected} />)
+  const onAttachFiles = vi.fn()
+  render(<ChatComposer {...defaults} onAttachFiles={onAttachFiles} />)
 
-  const textarea = screen.getByPlaceholderText(/attach files/i)
+  const textarea = screen.getByPlaceholderText(/attach health files/i)
   const imageFile = new File(['fake-image'], 'pasted.png', { type: imageType })
 
   const clipboardData = {
@@ -34,15 +33,15 @@ function pasteImage(imageType = 'image/png') {
   Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData, writable: false })
   fireEvent(textarea, pasteEvent)
 
-  return { onImageFilesSelected, pasteEvent }
+  return { onAttachFiles, pasteEvent }
 }
 
 describe('ChatComposer – clipboard image paste', () => {
-  it('calls onImageFilesSelected when an image is pasted', () => {
-    const { onImageFilesSelected } = pasteImage()
+  it('calls onAttachFiles when an image is pasted', () => {
+    const { onAttachFiles } = pasteImage()
 
-    expect(onImageFilesSelected).toHaveBeenCalledTimes(1)
-    const [files] = onImageFilesSelected.mock.calls[0]
+    expect(onAttachFiles).toHaveBeenCalledTimes(1)
+    const [files] = onAttachFiles.mock.calls[0]
     expect(files).toHaveLength(1)
     expect(files![0].type).toBe('image/png')
     expect(files![0].name).toMatch(/^clipboard-\d+\.png$/)
@@ -54,11 +53,11 @@ describe('ChatComposer – clipboard image paste', () => {
     expect(pasteEvent.defaultPrevented).toBe(true)
   })
 
-  it('does not call onImageFilesSelected when pasting plain text', () => {
-    const onImageFilesSelected = vi.fn()
-    render(<ChatComposer {...defaults} onImageFilesSelected={onImageFilesSelected} />)
+  it('does not call onAttachFiles when pasting plain text', () => {
+    const onAttachFiles = vi.fn()
+    render(<ChatComposer {...defaults} onAttachFiles={onAttachFiles} />)
 
-    const textarea = screen.getByPlaceholderText(/attach files/i)
+    const textarea = screen.getByPlaceholderText(/attach health files/i)
     const clipboardData = {
       items: [],
       types: ['text/plain'],
@@ -69,31 +68,31 @@ describe('ChatComposer – clipboard image paste', () => {
     Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData, writable: false })
     fireEvent(textarea, pasteEvent)
 
-    expect(onImageFilesSelected).not.toHaveBeenCalled()
+    expect(onAttachFiles).not.toHaveBeenCalled()
     expect(pasteEvent.defaultPrevented).toBe(false)
   })
 
   it('handles JPEG clipboard images', () => {
-    const { onImageFilesSelected } = pasteImage('image/jpeg')
+    const { onAttachFiles } = pasteImage('image/jpeg')
 
-    const [files] = onImageFilesSelected.mock.calls[0]
+    const [files] = onAttachFiles.mock.calls[0]
     expect(files![0].type).toBe('image/jpeg')
     expect(files![0].name).toMatch(/^clipboard-\d+\.jpeg$/)
   })
 
   it('derives extension from MIME subtype for non-standard types', () => {
-    const { onImageFilesSelected } = pasteImage('image/webp')
+    const { onAttachFiles } = pasteImage('image/webp')
 
-    const [files] = onImageFilesSelected.mock.calls[0]
+    const [files] = onAttachFiles.mock.calls[0]
     expect(files![0].type).toBe('image/webp')
     expect(files![0].name).toMatch(/^clipboard-\d+\.webp$/)
   })
 
   it('skips image items where getAsFile returns null without swallowing paste', () => {
-    const onImageFilesSelected = vi.fn()
-    render(<ChatComposer {...defaults} onImageFilesSelected={onImageFilesSelected} />)
+    const onAttachFiles = vi.fn()
+    render(<ChatComposer {...defaults} onAttachFiles={onAttachFiles} />)
 
-    const textarea = screen.getByPlaceholderText(/attach files/i)
+    const textarea = screen.getByPlaceholderText(/attach health files/i)
     const clipboardData = {
       items: [{ kind: 'file', type: 'image/png', getAsFile: () => null }],
       types: ['Files'],
@@ -104,15 +103,15 @@ describe('ChatComposer – clipboard image paste', () => {
     Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData, writable: false })
     fireEvent(textarea, pasteEvent)
 
-    expect(onImageFilesSelected).not.toHaveBeenCalled()
+    expect(onAttachFiles).not.toHaveBeenCalled()
     expect(pasteEvent.defaultPrevented).toBe(false)
   })
 
   it('continues past broken items to find a valid image', () => {
-    const onImageFilesSelected = vi.fn()
-    render(<ChatComposer {...defaults} onImageFilesSelected={onImageFilesSelected} />)
+    const onAttachFiles = vi.fn()
+    render(<ChatComposer {...defaults} onAttachFiles={onAttachFiles} />)
 
-    const textarea = screen.getByPlaceholderText(/attach files/i)
+    const textarea = screen.getByPlaceholderText(/attach health files/i)
     const validFile = new File(['valid-image'], 'ok.png', { type: 'image/png' })
     const clipboardData = {
       items: [
@@ -127,8 +126,8 @@ describe('ChatComposer – clipboard image paste', () => {
     Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData, writable: false })
     fireEvent(textarea, pasteEvent)
 
-    expect(onImageFilesSelected).toHaveBeenCalledTimes(1)
-    const [files] = onImageFilesSelected.mock.calls[0]
+    expect(onAttachFiles).toHaveBeenCalledTimes(1)
+    const [files] = onAttachFiles.mock.calls[0]
     expect(files![0].type).toBe('image/png')
     expect(files![0].name).toMatch(/^clipboard-\d+\.png$/)
     expect(pasteEvent.defaultPrevented).toBe(true)
