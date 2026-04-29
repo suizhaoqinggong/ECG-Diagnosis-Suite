@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     # File upload settings
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
     UPLOAD_DIR: str = "data/uploads"
-    ALLOWED_EXTENSIONS: List[str] = [".png", ".jpg", ".jpeg", ".dat", ".hea"]
+    ALLOWED_EXTENSIONS: List[str] = [".png", ".jpg", ".jpeg", ".dat", ".hea", ".pdf", ".txt"]
 
     # Image processing limits
     IMAGE_MAX_PIXELS: int = 178_956_970  # ~178MP, Pillow default threshold
