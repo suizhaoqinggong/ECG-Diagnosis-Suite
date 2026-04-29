@@ -1,64 +1,53 @@
-from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, JSON, Float, DateTime, ForeignKey, Boolean
-from sqlalchemy.orm import relationship, declarative_base
+from __future__ import annotations
 
-Base = declarative_base()
+from datetime import datetime, timezone
+from typing import Optional
+
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, JSON
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.db_models import Base
 
 
 class HealthJob(Base):
-    """Represents a health analysis job that can process multiple assets"""
     __tablename__ = "health_jobs"
+    __table_args__ = (Index("ix_health_jobs_user_created", "user_id", "created_at"),)
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False, index=True)
-    status = Column(String(50), nullable=False, index=True, default="pending")
-    payload = Column("payload", JSON, default=dict, nullable=False)
-    priority = Column(Integer, default=0, nullable=False)
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
-    failed = Column(Boolean, default=False, nullable=False)
-    error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    session_id: Mapped[Optional[str]] = mapped_column(ForeignKey("chat_sessions.id", ondelete="SET NULL"), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
+    message: Mapped[str] = mapped_column(String(255), nullable=False, default="Queued")
+    error_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    result_payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
 
-    # Relationships
-    assets = relationship("HealthAsset", back_populates="job", cascade="all, delete-orphan")
-    findings = relationship("HealthFinding", back_populates="job", cascade="all, delete-orphan")
+    assets: Mapped[list["HealthAsset"]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    findings: Mapped[list["HealthFinding"]] = relationship(back_populates="job", cascade="all, delete-orphan")
 
 
 class HealthAsset(Base):
-    """Represents a health data asset (ECG image, signal file, lab result, etc.) processed in a job"""
     __tablename__ = "health_assets"
 
-    id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(Integer, ForeignKey("health_jobs.id"), nullable=False, index=True)
-    asset_type = Column(String(50), nullable=False, index=True)
-    file_path = Column(String(500), nullable=False)
-    hash = Column(String(255), nullable=True, index=True)
-    meta = Column("metadata", JSON, default=dict, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("health_jobs.id", ondelete="CASCADE"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    stored_path: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Relationships
-    job = relationship("HealthJob", back_populates="assets")
-    findings = relationship("HealthFinding", back_populates="asset", cascade="all, delete-orphan")
+    job: Mapped["HealthJob"] = relationship(back_populates="assets")
 
 
 class HealthFinding(Base):
-    """Represents a clinical finding derived from analyzing a health asset"""
     __tablename__ = "health_findings"
 
-    id = Column(Integer, primary_key=True, index=True)
-    job_id = Column(Integer, ForeignKey("health_jobs.id"), nullable=False, index=True)
-    asset_id = Column(Integer, ForeignKey("health_assets.id"), nullable=True, index=True)
-    finding_type = Column(String(50), nullable=False, index=True)
-    title = Column(String(255), nullable=False)
-    description = Column(Text, nullable=True)
-    severity = Column(String(50), nullable=False, index=True)
-    icd_code = Column(String(50), nullable=True, index=True)
-    confidence = Column(Float, nullable=True)
-    meta = Column("metadata", JSON, default=dict, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    job_id: Mapped[str] = mapped_column(ForeignKey("health_jobs.id", ondelete="CASCADE"), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False)
+    action_hint: Mapped[str] = mapped_column(String(20), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
 
-    # Relationships
-    job = relationship("HealthJob", back_populates="findings")
-    asset = relationship("HealthAsset", back_populates="findings")
+    job: Mapped["HealthJob"] = relationship(back_populates="findings")

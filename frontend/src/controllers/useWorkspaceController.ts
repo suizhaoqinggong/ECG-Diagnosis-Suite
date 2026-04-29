@@ -465,6 +465,8 @@ export function useWorkspaceController() {
       dispatch({ type: 'UPDATE_MESSAGE', sessionId: activeSession.id, messageId: pendingMessageId, updates: { type: 'health_report' } })
 
       let latestResult: HealthAnalysisResult | undefined
+      const MAX_POLLS = 120 // 3 minutes at 1.5s intervals
+      let pollCount = 0
       for (;;) {
         if (currentAbortController.signal.aborted) return
         const latest = await healthApi.getJob(job.id)
@@ -474,6 +476,10 @@ export function useWorkspaceController() {
         }
         if (latest.status === 'failed') {
           throw new Error(latest.error ?? 'Health analysis failed')
+        }
+        pollCount += 1
+        if (pollCount >= MAX_POLLS) {
+          throw new Error('Analysis timed out. Please try again.')
         }
         await new Promise((resolve) => setTimeout(resolve, 1500))
       }

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,7 +10,10 @@ from fastapi import HTTPException, UploadFile
 from app.core.database import AsyncSessionLocal
 from app.core.upload import sanitize_filename, save_upload, validate_extension
 from app.models.health import HealthAsset, HealthJob
+from .classifier import classify_asset
 from .composer import compose_health_report
+
+logger = logging.getLogger(__name__)
 
 
 class HealthPipelineService:
@@ -17,10 +21,21 @@ class HealthPipelineService:
         self._ecg_adapter = ecg_adapter
         self._vision_extractor = vision_extractor
 
-    async def create_job(self, *, files: list[UploadFile], note: str | None, user_id: int | None, session_id: str | None) -> HealthJob:
-        from .classifier import HealthAssetClassifier
-        classifier = HealthAssetClassifier()
-        job = HealthJob(id=str(uuid4()), user_id=user_id, session_id=session_id, status="queued", message="Queued")
+    async def create_job(
+        self,
+        *,
+        files: list[UploadFile],
+        note: str | None,
+        user_id: int | None,
+        session_id: str | None,
+    ) -> HealthJob:
+        job = HealthJob(
+            id=str(uuid4()),
+            user_id=user_id,
+            session_id=session_id,
+            status="queued",
+            message="Queued",
+        )
         async with AsyncSessionLocal() as session:
             session.add(job)
             for file in files:
@@ -32,7 +47,7 @@ class HealthPipelineService:
                     HealthAsset(
                         id=str(uuid4()),
                         job_id=job.id,
-                        kind=classifier.classify(safe_name, file.content_type),
+                        kind=classify_asset(safe_name, file.content_type),
                         filename=safe_name,
                         stored_path=str(destination),
                     )
@@ -53,20 +68,47 @@ class HealthPipelineService:
             return job
 
     async def process_job(self, job_id: str) -> None:
-        async with AsyncSessionLocal() as session:
-            job = await session.get(HealthJob, job_id)
-            if not job:
-                return
-            job.status = "processing"
-            job.message = "Processing uploads"
-            await session.commit()
+        try:
+            async with AsyncSessionLocal() as session:
+                job = await session.get(HealthJob, job_id)
+                if not job:
+                    return
+                job.status = "processing"
+                job.message = "Processing uploads"
+                await session.commit()
 
-            findings = [{"id": "ldl-high", "title": "LDL 胆固醇偏高", "severity": "medium", "action_hint": "recheck"}]
-            ecg_result = {"prediction": "正常", "confidence": 0.91} if any(asset.kind == "ecg_signal" for asset in job.assets) else None
-            job.result_payload = await self._build_completed_payload(findings, ecg_result)
-            job.status = "completed"
-            job.message = "Completed"
-            await session.commit()
+                findings = [
+                    {
+                        "id": "ldl-high",
+                        "title": "LDL 胆固醇偏高",
+                        "severity": "medium",
+                        "action_hint": "recheck",
+                    }
+                ]
+                ecg_result = (
+                    {"prediction": "正常", "confidence": 0.91}
+                    if any(asset.kind == "ecg_signal" for asset in job.assets)
+                    else None
+                )
+                job.result_payload = await self._build_completed_payload(findings, ecg_result)
+                job.status = "completed"
+                job.message = "Completed"
+                await session.commit()
+        except Exception:
+            logger.exception("Health job %s failed", job_id)
+            try:
+                async with AsyncSessionLocal() as session:
+                    job = await session.get(HealthJob, job_id)
+                    if job:
+                        job.status = "failed"
+                        job.error_detail = "An internal error occurred during analysis."
+                        await session.commit()
+            except Exception:
+                logger.exception("Failed to persist error state for job %s", job_id)
 
     async def _build_completed_payload(self, findings: list[dict], ecg_result: dict | None) -> dict:
-        return {"jobId": "computed-at-runtime", "status": "completed", **compose_health_report(findings, ecg_result)}
+        return {
+            "jobId": "computed-at-runtime",
+            "status": "completed",
+            **compose_health_report(findings, ecg_result),
+        }
