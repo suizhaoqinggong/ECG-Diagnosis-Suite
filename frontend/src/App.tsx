@@ -1,14 +1,18 @@
+import { useState } from 'react'
 import { Toaster } from 'react-hot-toast'
 import ErrorBoundary from './components/ErrorBoundary'
 import HomePage from './pages/HomePage'
 import { AuthProvider } from './auth/AuthProvider'
+import type { NavigationDestination } from './types/navigation'
 
 function App() {
+  const [destination, setDestination] = useState<NavigationDestination>('read-report')
+
   return (
     <ErrorBoundary>
       <AuthProvider>
         <div className="min-h-screen bg-transparent text-[var(--ink)]">
-          <HomePage />
+          <HomePage destination={destination} onNavigate={setDestination} />
         </div>
         <Toaster
           position="top-center"
