@@ -4,6 +4,12 @@ import type { DiagnosisResultData } from '@/api'
 import { copyToClipboard, formatReportAsText } from '@/utils/clipboard'
 import { formatConfidence } from '@/utils'
 import QCWarning from './QCWarning'
+import ConclusionHero from './result/ConclusionHero'
+import WhatItMeans from './result/WhatItMeans'
+import RiskCard from './result/RiskCard'
+import NextStepsChecklist from './result/NextStepsChecklist'
+import DoctorQuestions from './result/DoctorQuestions'
+import EvidenceAndLimits from './result/EvidenceAndLimits'
 
 interface DiagnosisReportProps {
   result: DiagnosisResultData
@@ -46,6 +52,10 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
   const [copied, setCopied] = useState(false)
   const showQualityBanner = result.quality_warning === 'warn' || result.quality_warning === 'fail' || (result.pipeline_warnings ?? []).length > 0
 
+  const riskLevel = result.severity === 'normal' ? 'low' as const
+    : result.severity === 'borderline' ? 'medium' as const
+    : 'high' as const
+
   const handleCopy = async () => {
     const text = formatReportAsText(result)
     const success = await copyToClipboard(text)
@@ -63,61 +73,22 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
   }
 
   return (
-    <section className="printable-report space-y-8 rounded-[30px] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-[0_22px_55px_rgba(84,69,53,0.08)] md:p-8">
-      {/* Overview */}
-      <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_220px] md:items-end">
-        <div className="space-y-3">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-            Diagnosis Overview
-          </p>
-          <h3 className="reading-copy text-4xl leading-none tracking-tight text-[var(--ink)] md:text-[3.2rem]">
-            {result.prediction}
-          </h3>
-          {result.report?.summary ? (
-            <p className="reading-copy text-lg leading-8 text-[var(--ink-soft)]">
-              {result.report.summary}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="rounded-[24px] border border-[var(--border)] bg-[rgba(245,241,234,0.8)] p-5">
-          <p className="text-xs font-medium uppercase tracking-[0.24em] text-[var(--ink-muted)]">
-            Confidence
-          </p>
-          <p className="mt-3 text-3xl font-semibold tracking-tight text-[var(--ink)]">
-            {formatConfidence(result.confidence)}
-          </p>
-          {result.severity ? (
-            <p className="mt-4 text-sm text-[var(--ink-soft)]">
-              Severity: {result.severity}
-            </p>
-          ) : null}
-          {result.icd_code ? (
-            <p className="mt-1 text-sm text-[var(--ink-soft)]">
-              ICD: {result.icd_code}
-            </p>
-          ) : null}
-          <p className="mt-4 text-xs uppercase tracking-[0.24em] text-[var(--ink-muted)]">
-            Report: {result.report.source === 'llm' ? 'LLM enhanced' : 'Template'}
-          </p>
-        </div>
-      </div>
-
-      {/* Copy / Print Buttons */}
+    <section className="printable-report space-y-8 rounded-[24px] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-[0_16px_40px_rgba(84,69,53,0.06)] md:p-8">
+      {/* Action buttons */}
       <div className="flex gap-2">
         <button
           onClick={handleCopy}
-          className="rounded-full border border-[var(--border)] bg-white/60 px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-white/80"
-          aria-label="Copy report as text"
+          className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-white/80"
+          aria-label="复制报告文本"
         >
-          {copied ? 'Copied' : 'Copy'}
+          {copied ? '已复制' : '复制报告'}
         </button>
         <button
           onClick={handlePrint}
-          className="rounded-full border border-[var(--border)] bg-white/60 px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-white/80"
-          aria-label="Print report"
+          className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-white/80"
+          aria-label="打印报告"
         >
-          Print
+          打印
         </button>
       </div>
 
@@ -129,151 +100,132 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
         />
       ) : null}
 
-      {/* Clinical Interpretation */}
-      {result.report?.clinical_interpretation ? (
-        <div className="space-y-4">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-            Clinical Interpretation
-          </p>
-          <div className="rounded-[22px] border border-[var(--border)] bg-white/60 px-5 py-5">
-            <p className="reading-copy text-lg leading-8 text-[var(--ink-soft)]">
-              {result.report.clinical_interpretation}
-            </p>
-          </div>
-        </div>
-      ) : null}
+      {/* Section 1: Core Conclusion */}
+      <ConclusionHero
+        title={result.prediction}
+        summary={result.report?.summary}
+        reportType="心电图分析报告"
+        sourceType="ECG AI 分析"
+      />
 
-      {/* Key Findings */}
-      {result.report?.key_findings?.length > 0 ? (
-        <div className="space-y-4">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-            Key Findings
-          </p>
-          <div className="space-y-3">
-            {result.report.key_findings.map((finding, index) => (
-              <div
-                key={`${finding}-${index}`}
-                className="rounded-[20px] border border-[var(--border)] bg-white/60 px-4 py-4 text-base leading-7 text-[var(--ink-soft)]"
-              >
-                {finding}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
+      {/* Section 2: What This Means */}
+      <WhatItMeans
+        summary={result.report?.summary}
+        clinicalInterpretation={result.report?.clinical_interpretation}
+        findings={result.report?.key_findings?.map((f, i) => ({
+          id: `finding-${i}`,
+          sourceType: 'ecg_ai' as const,
+          title: result.top3_predictions?.[0]?.class || result.prediction,
+          summary: f,
+          severity: riskLevel,
+          actionHint: 'clinic_visit' as const,
+          evidence: [],
+        }))}
+      />
 
-      {/* Top Predictions */}
-      {result.top3_predictions && result.top3_predictions.length > 0 ? (
-        <div className="space-y-4">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-            Top Signals
-          </p>
-          <div className="space-y-3">
-            {result.top3_predictions.map((prediction) => (
-              <div
-                key={`${prediction.class}-${prediction.probability}`}
-                className="grid gap-2 rounded-[20px] border border-[var(--border)] bg-white/60 px-4 py-4 md:grid-cols-[minmax(0,1fr)_90px]"
-              >
-                <div>
-                  <p className="text-base font-semibold text-[var(--ink)]">
-                    {prediction.class}
-                  </p>
-                  {prediction.class_en ? (
-                    <p className="mt-1 text-sm text-[var(--ink-muted)]">
-                      {prediction.class_en}
+      {/* Section 3: Risk Judgment */}
+      <RiskCard riskLevel={riskLevel} />
+
+      {/* Section 4: Next Steps */}
+      <NextStepsChecklist
+        recommendations={result.report?.recommendations}
+        followUp={result.report?.follow_up}
+      />
+
+      {/* Section 5: Questions for Doctor */}
+      <DoctorQuestions
+        findings={result.report?.key_findings?.map((f, i) => ({
+          id: `finding-${i}`,
+          sourceType: 'ecg_ai' as const,
+          title: result.prediction,
+          summary: f,
+          severity: riskLevel,
+          actionHint: 'clinic_visit' as const,
+          evidence: [],
+        }))}
+      />
+
+      {/* Section 6: Evidence & Limitations */}
+      <EvidenceAndLimits
+        confidence={result.confidence}
+        pipelineWarnings={result.pipeline_warnings}
+        limitations={result.report?.limitations}
+        disclaimer={result.disclaimer}
+      />
+
+      {/* Technical details: collapsible */}
+      <details className="group space-y-4 rounded-[20px] border border-[var(--border)] bg-[var(--bg-muted)]/50 p-5">
+        <summary className="cursor-pointer text-sm font-medium text-[var(--ink-soft)]">
+          查看技术详情 (模型概率分布)
+        </summary>
+
+        <div className="mt-4 space-y-4">
+          {result.top3_predictions && result.top3_predictions.length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                主要预测
+              </p>
+              {result.top3_predictions.map((prediction) => (
+                <div
+                  key={`${prediction.class}-${prediction.probability}`}
+                  className="grid gap-2 rounded-[16px] border border-[var(--border)] bg-[var(--surface)] p-4 md:grid-cols-[minmax(0,1fr)_90px]"
+                >
+                  <div>
+                    <p className="text-base font-semibold text-[var(--ink)]">
+                      {prediction.class}
                     </p>
-                  ) : null}
+                    {prediction.class_en ? (
+                      <p className="mt-1 text-sm text-[var(--ink-muted)]">
+                        {prediction.class_en}
+                      </p>
+                    ) : null}
+                  </div>
+                  <p className="text-base font-medium text-[var(--ink-soft)] md:text-right">
+                    {formatConfidence(prediction.probability)}
+                  </p>
                 </div>
-                <p className="text-base font-medium text-[var(--ink-soft)] md:text-right">
-                  {formatConfidence(prediction.probability)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* All Probabilities as Bar Charts */}
-      {result.all_probabilities && Object.keys(result.all_probabilities).length > 0 ? (
-        <div className="space-y-4">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-            All Predictions (Model Probabilities)
-          </p>
-          <div className="space-y-4">
-            {Object.entries(result.all_probabilities)
-              .sort(([, a], [, b]) => b - a)
-              .map(([className, probability], index) => (
-                <ProbabilityBar
-                  key={className}
-                  prediction={{ class: className, probability }}
-                  index={index}
-                />
               ))}
-          </div>
-        </div>
-      ) : null}
+            </div>
+          ) : null}
 
-      {/* Recommendations */}
-      {result.report?.recommendations?.length > 0 ? (
-        <div className="space-y-4">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-            Recommendations
+          {result.all_probabilities && Object.keys(result.all_probabilities).length > 0 ? (
+            <div className="space-y-3">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+                所有概率分布
+              </p>
+              {Object.entries(result.all_probabilities)
+                .sort(([, a], [, b]) => b - a)
+                .map(([className, probability], index) => (
+                  <ProbabilityBar
+                    key={className}
+                    prediction={{ class: className, probability }}
+                    index={index}
+                  />
+                ))}
+            </div>
+          ) : null}
+        </div>
+      </details>
+
+      {/* Confidence sidebar card (legacy) */}
+      <div className="rounded-[20px] border border-[var(--border)] bg-[var(--bg-muted)]/50 p-5">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--ink-muted)]">
+          置信度
+        </p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight text-[var(--ink)]">
+          {formatConfidence(result.confidence)}
+        </p>
+        {result.severity && (
+          <p className="mt-2 text-sm text-[var(--ink-soft)]">
+            严重程度: {result.severity}
           </p>
-          <div className="space-y-3">
-            {result.report.recommendations.map((recommendation, index) => (
-              <div
-                key={`${recommendation}-${index}`}
-                className="rounded-[20px] border border-[var(--border)] bg-white/60 px-4 py-4 text-base leading-7 text-[var(--ink-soft)]"
-              >
-                {recommendation}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* Follow-up */}
-      {result.report?.follow_up?.length > 0 ? (
-        <div className="space-y-4">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-            Follow-up
+        )}
+        {result.icd_code && (
+          <p className="mt-1 text-sm text-[var(--ink-soft)]">
+            ICD: {result.icd_code}
           </p>
-          <div className="space-y-3">
-            {result.report.follow_up.map((item, index) => (
-              <div
-                key={`${item}-${index}`}
-                className="rounded-[20px] border border-[var(--border)] bg-white/60 px-4 py-4 text-base leading-7 text-[var(--ink-soft)]"
-              >
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* Limitations */}
-      {result.report?.limitations?.length > 0 ? (
-        <div className="space-y-4">
-          <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-            Limitations
-          </p>
-          <div className="space-y-3">
-            {result.report.limitations.map((item, index) => (
-              <div
-                key={`${item}-${index}`}
-                className="rounded-[20px] border border-[var(--border)] bg-[rgba(245,241,234,0.7)] px-4 py-4 text-base leading-7 text-[var(--ink-muted)]"
-              >
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {/* Disclaimer */}
-      <p className="text-sm leading-7 text-[var(--ink-muted)]">
-        {result.disclaimer}
-      </p>
+        )}
+      </div>
     </section>
   )
 }

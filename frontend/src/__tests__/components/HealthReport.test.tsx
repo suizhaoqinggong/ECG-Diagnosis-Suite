@@ -16,6 +16,6 @@ it('renders overall risk and next steps', () => {
       }}
     />,
   )
-  expect(screen.getByText(/high/)).toBeInTheDocument()
+  expect(screen.getByText('建议尽快就医')).toBeInTheDocument()
   expect(screen.getByText('尽快门诊复查')).toBeInTheDocument()
 })
