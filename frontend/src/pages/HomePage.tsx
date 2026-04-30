@@ -221,7 +221,7 @@ export default function HomePage({ destination, onNavigate }: HomePageProps) {
         )}
 
         {/* Standalone pages */}
-        {destination === 'my-reports' && <MyReportsPage />}
+        {destination === 'my-reports' && <MyReportsPage onNavigate={onNavigate} />}
         {destination === 'account' && <AccountPage />}
       </main>
 
