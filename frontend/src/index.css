@@ -1,28 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg: #f5f1ea;
-  --bg-muted: #efe8dc;
-  --surface: rgba(255, 252, 247, 0.86);
-  --surface-strong: rgba(255, 252, 247, 0.96);
-  --border: rgba(120, 104, 86, 0.16);
-  --border-strong: rgba(120, 104, 86, 0.24);
-  --ink: #2e2a26;
-  --ink-soft: #61564b;
-  --ink-muted: #8c7f72;
-  --accent: #7d6b57;
-  --accent-soft: #ede3d4;
+  --bg: #f4f7f9;
+  --bg-muted: #eaf0f4;
+  --surface: rgba(255, 255, 255, 0.88);
+  --surface-strong: rgba(255, 255, 255, 0.96);
+  --border: rgba(100, 130, 150, 0.16);
+  --border-strong: rgba(100, 130, 150, 0.24);
+  --ink: #1a2330;
+  --ink-soft: #3d5068;
+  --ink-muted: #6b8299;
+  --accent: #2d7d8f;
+  --accent-soft: #d4e8ed;
+  --success: #2d8f5e;
+  --danger: #c0392b;
+  --warning: #c9781b;
 
-  font-family: "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-family: 'Source Sans 3', -apple-system, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color: var(--ink);
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.78), transparent 28rem),
-    radial-gradient(circle at top right, rgba(236, 227, 212, 0.78), transparent 24rem),
-    linear-gradient(180deg, #f7f3ec 0%, #f1ebe1 100%);
+  background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -57,7 +59,7 @@ button {
 }
 
 ::selection {
-  background: rgba(125, 107, 87, 0.18);
+  background: rgba(45, 125, 143, 0.18);
 }
 
 #root {
@@ -65,8 +67,13 @@ button {
   min-height: 100vh;
 }
 
+/* Typography */
 .reading-copy {
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-family: 'Source Sans 3', -apple-system, 'Segoe UI', sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Lexend', 'Source Sans 3', -apple-system, sans-serif;
 }
 
 .prose-block p {
@@ -77,9 +84,10 @@ button {
   margin-top: 1.1rem;
 }
 
+/* Scrollbar */
 .soft-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(125, 107, 87, 0.28) transparent;
+  scrollbar-color: rgba(100, 130, 150, 0.28) transparent;
 }
 
 .soft-scrollbar::-webkit-scrollbar {
@@ -94,10 +102,17 @@ button {
 .soft-scrollbar::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: rgba(125, 107, 87, 0.24);
+  background: rgba(100, 130, 150, 0.24);
   background-clip: padding-box;
 }
 
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Animations */
 @keyframes ecg-pulse {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
@@ -124,6 +139,7 @@ button {
   }
 }
 
+/* Print */
 @media print {
   body * {
     visibility: hidden;
