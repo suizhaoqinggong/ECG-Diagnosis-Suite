@@ -183,7 +183,7 @@ export default function HomePage({ destination, onNavigate }: HomePageProps) {
 
             <div className="flex-1">
               <div className="mx-auto max-w-4xl px-4 md:px-8">
-                {destination === 'read-report' ? <ReadReportPage /> : null}
+                {destination === 'read-report' ? <ReadReportPage onNavigate={onNavigate} /> : null}
                 {destination === 'upload-ecg' ? (
                   <>
                     {activeSession.messages.some(m => m.role === 'user') ? null : (
