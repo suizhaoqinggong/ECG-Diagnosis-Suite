@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import type { DiagnosisResultData } from '@/api'
 import { copyToClipboard, formatReportAsText } from '@/utils/clipboard'
 import { formatConfidence } from '@/utils'
+import { mapDiagnosisSeverityToRiskOrDefault } from '@/utils/severity'
 import QCWarning from './QCWarning'
 import ConclusionHero from './result/ConclusionHero'
 import WhatItMeans from './result/WhatItMeans'
@@ -52,19 +53,17 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
   const [copied, setCopied] = useState(false)
   const showQualityBanner = result.quality_warning === 'warn' || result.quality_warning === 'fail' || (result.pipeline_warnings ?? []).length > 0
 
-  const riskLevel = result.severity === 'normal' ? 'low' as const
-    : result.severity === 'borderline' ? 'medium' as const
-    : 'high' as const
+  const riskLevel = mapDiagnosisSeverityToRiskOrDefault(result.severity)
 
   const handleCopy = async () => {
     const text = formatReportAsText(result)
     const success = await copyToClipboard(text)
     if (success) {
       setCopied(true)
-      toast.success('Report copied to clipboard')
+      toast.success('报告已复制到剪贴板')
       setTimeout(() => setCopied(false), 2000)
     } else {
-      toast.error('Failed to copy report')
+      toast.error('复制报告失败')
     }
   }
 

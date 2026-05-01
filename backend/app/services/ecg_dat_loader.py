@@ -55,8 +55,14 @@ class ECGDataLoader:
             FileNotFoundError: 文件不存在
             ValueError: 文件格式错误
         """
-        # 规范化路径（去掉.dat扩展名，wfdb会自动添加）
-        record_name = dat_path.replace('.dat', '').replace('.hea', '')
+        # 规范化路径（去掉.dat或.hea扩展名，wfdb会自动添加）
+        # 用 os.path.splitext 而不是 .replace()，避免路径中包含 ".dat"/".hea"
+        # 子串时被错误剥离（例如 "/uploads/userdat/foo.dat" 之类）
+        base, ext = os.path.splitext(dat_path)
+        if ext.lower() in (".dat", ".hea"):
+            record_name = base
+        else:
+            record_name = dat_path
 
         # 检查文件存在
         if not os.path.exists(f"{record_name}.dat"):

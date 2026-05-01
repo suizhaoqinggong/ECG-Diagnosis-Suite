@@ -2,18 +2,7 @@ import type { ChatSession } from '@/types/chat'
 import type { HealthRiskLevel, HealthAnalysisResult } from '@/types/health'
 import type { DiagnosisResultData } from '@/api'
 import { formatSidebarTimestamp } from '@/utils'
-
-function mapDiagnosisSeverity(severity?: string | null): HealthRiskLevel | null {
-  if (!severity) return null
-  const map: Record<string, HealthRiskLevel> = {
-    normal: 'low',
-    mild: 'low',
-    moderate: 'medium',
-    severe: 'high',
-    critical: 'urgent',
-  }
-  return map[severity.toLowerCase()] ?? 'medium'
-}
+import { mapDiagnosisSeverityToRisk } from '@/utils/severity'
 
 function getReportRiskLevel(session: ChatSession): HealthRiskLevel | null {
   const lastResult = [...session.messages]
@@ -26,7 +15,7 @@ function getReportRiskLevel(session: ChatSession): HealthRiskLevel | null {
     return (lastResult.result as HealthAnalysisResult).overallRisk
   }
   if ('severity' in lastResult.result) {
-    return mapDiagnosisSeverity((lastResult.result as DiagnosisResultData).severity)
+    return mapDiagnosisSeverityToRisk((lastResult.result as DiagnosisResultData).severity)
   }
   return null
 }

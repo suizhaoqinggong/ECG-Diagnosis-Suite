@@ -2,6 +2,7 @@ import type { HealthAnalysisResult } from '@/types/health'
 import type { DiagnosisResultData } from '@/api'
 import { formatConversationTimestamp } from '@/utils'
 import { mapRiskToPatientLabel } from '@/utils/patient-language'
+import { mapDiagnosisSeverityToRiskOrDefault } from '@/utils/severity'
 import ConclusionHero from '@/components/result/ConclusionHero'
 import WhatItMeans from '@/components/result/WhatItMeans'
 import RiskCard from '@/components/result/RiskCard'
@@ -93,6 +94,8 @@ export default function ResultPage({ result, timestamp, onSave, isSaved }: Resul
   }
 
   // DiagnosisResultData (legacy ECG-only result)
+  const riskLevel = mapDiagnosisSeverityToRiskOrDefault(result.severity)
+
   return (
     <div className="mx-auto max-w-3xl space-y-10 px-4 py-8 md:px-8 md:py-12">
       {/* Save button */}
@@ -134,7 +137,7 @@ export default function ResultPage({ result, timestamp, onSave, isSaved }: Resul
             sourceType: 'ecg_ai' as const,
             title: result.top3_predictions?.[0]?.class || result.prediction,
             summary: f,
-            severity: (result.severity === 'normal' ? 'low' : result.severity === 'borderline' ? 'medium' : 'high') as 'low' | 'medium' | 'high' | 'urgent',
+            severity: riskLevel,
             actionHint: 'clinic_visit' as const,
             evidence: [],
           }))}
@@ -144,11 +147,7 @@ export default function ResultPage({ result, timestamp, onSave, isSaved }: Resul
       {/* Section 3: Risk Judgment */}
       <section aria-labelledby="risk-heading">
         <RiskCard
-          riskLevel={
-            result.severity === 'normal' ? 'low'
-            : result.severity === 'borderline' ? 'medium'
-            : 'high'
-          }
+          riskLevel={riskLevel}
         />
       </section>
 
@@ -167,7 +166,7 @@ export default function ResultPage({ result, timestamp, onSave, isSaved }: Resul
           sourceType: 'ecg_ai' as const,
           title: result.prediction,
           summary: f,
-          severity: (result.severity === 'normal' ? 'low' : result.severity === 'borderline' ? 'medium' : 'high') as 'low' | 'medium' | 'high' | 'urgent',
+          severity: riskLevel,
           actionHint: 'clinic_visit' as const,
           evidence: [],
         }))} />

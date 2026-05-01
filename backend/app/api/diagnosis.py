@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
@@ -126,34 +127,36 @@ async def diagnose_ecg_dat_files(
         raise HTTPException(status_code=400, detail="请同时上传.dat和.hea两个文件")
 
     # 识别.dat和.hea文件
-    dat_file = None
-    hea_file = None
+    dat_file: UploadFile | None = None
+    hea_file: UploadFile | None = None
+    dat_safe: str | None = None
+    hea_safe: str | None = None
 
     for file in files:
         safe_name = sanitize_filename(file.filename)
         validate_extension(safe_name)
         if safe_name.lower().endswith(".dat"):
             dat_file = file
+            dat_safe = safe_name
         elif safe_name.lower().endswith(".hea"):
             hea_file = file
+            hea_safe = safe_name
 
-    if not dat_file or not hea_file:
+    if not dat_file or not hea_file or not dat_safe or not hea_safe:
         raise HTTPException(
             status_code=400, detail="必须包含一个.dat文件和一个.hea文件"
         )
 
-    # 验证文件名匹配
-    dat_name = dat_file.filename.replace(".dat", "").replace(".DAT", "")
-    hea_name = hea_file.filename.replace(".hea", "").replace(".HEA", "")
+    # 验证文件名匹配（仅比较去掉扩展名后的基名）
+    # 用 Path.stem 而不是 .replace()，避免类似 "my.dat.summary.dat" 的多次替换错误
+    dat_name = Path(dat_safe).stem
+    hea_name = Path(hea_safe).stem
 
     if dat_name != hea_name:
         raise HTTPException(
             status_code=400,
             detail=f".dat和.hea文件名必须相同（不含扩展名）。.dat: {dat_name}, .hea: {hea_name}",
         )
-
-    dat_safe = sanitize_filename(dat_file.filename)
-    hea_safe = sanitize_filename(hea_file.filename)
 
     service = _get_diagnosis_service()
     return await service.diagnose_dat_pair(

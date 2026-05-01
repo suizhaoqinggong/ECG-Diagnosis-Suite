@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast'
 import ErrorBoundary from './components/ErrorBoundary'
 import HomePage from './pages/HomePage'
 import { AuthProvider } from './auth/AuthProvider'
+import { WorkspaceProvider } from './controllers/WorkspaceProvider'
 import type { NavigationDestination } from './types/navigation'
 
 function App() {
@@ -11,9 +12,11 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <div className="min-h-screen bg-transparent text-[var(--ink)]">
-          <HomePage destination={destination} onNavigate={setDestination} />
-        </div>
+        <WorkspaceProvider>
+          <div className="min-h-screen bg-transparent text-[var(--ink)]">
+            <HomePage destination={destination} onNavigate={setDestination} />
+          </div>
+        </WorkspaceProvider>
         <Toaster
           position="top-center"
           toastOptions={{

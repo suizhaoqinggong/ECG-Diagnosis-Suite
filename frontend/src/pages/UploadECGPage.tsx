@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useWorkspaceController } from '@/controllers/useWorkspaceController'
+import { useWorkspace } from '@/controllers/WorkspaceProvider'
 import ConversationMessage from '@/components/ConversationMessage'
 import EmptyStateGuide from '@/components/EmptyStateGuide'
 import { formatFileSize } from '@/utils'
@@ -59,7 +59,7 @@ export default function UploadECGPage() {
     submit,
     retry,
     cancelSubmission,
-  } = useWorkspaceController()
+  } = useWorkspace()
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -113,7 +113,7 @@ export default function UploadECGPage() {
       {/* Page Header */}
       <header className="mb-8 space-y-2">
         <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-          Health Analysis Workspace
+          健康分析工作区
         </p>
         <h2 className="reading-copy text-3xl tracking-tight text-[var(--ink)] md:text-[2.5rem]">
           上传健康资料

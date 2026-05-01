@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { NavigationDestination } from '@/types/navigation'
 import type { ChatSession } from '@/types/chat'
-import { useWorkspaceController } from '@/controllers/useWorkspaceController'
+import { useWorkspace } from '@/controllers/WorkspaceProvider'
 import ReportList from '@/components/ReportList'
 import ReportDetail from '@/components/ReportDetail'
 import EmptyReports from '@/components/EmptyReports'
@@ -15,7 +15,7 @@ function hasMeaningfulReport(session: ChatSession): boolean {
 }
 
 export default function MyReportsPage({ onNavigate }: MyReportsPageProps) {
-  const { state, renameSession, deleteSession } = useWorkspaceController()
+  const { state, renameSession, deleteSession } = useWorkspace()
   const sessions = state.persisted.sessions
   const meaningfulSessions = sessions.filter(hasMeaningfulReport)
 

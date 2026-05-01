@@ -9,7 +9,7 @@ import MobileHeader from '../components/MobileHeader'
 import ReadReportPage from './ReadReportPage'
 import MyReportsPage from './MyReportsPage'
 import AccountPage from './AccountPage'
-import { useWorkspaceController } from '../controllers/useWorkspaceController'
+import { useWorkspace } from '../controllers/WorkspaceProvider'
 import { useAuth } from '../auth/AuthProvider'
 import { AuthModal } from '../auth/AuthModal'
 import { UserMenu } from '../auth/UserMenu'
@@ -34,7 +34,7 @@ export default function HomePage({ destination, onNavigate }: HomePageProps) {
     deleteSession,
     clearAllSessions,
     togglePersistence,
-  } = useWorkspaceController()
+  } = useWorkspace()
   const auth = useAuth()
   const [showAuthModal, setShowAuthModal] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
