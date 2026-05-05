@@ -40,17 +40,34 @@ cp .env.production.example .env.production
 
 ```env
 APP_DOMAIN=your-domain.com
+BACKEND_SECRET_KEY=change-me-to-a-long-random-value
+BACKEND_CORS_ORIGINS=["https://your-domain.com"]
+BACKEND_ALLOWED_HOSTS=["your-domain.com"]
+BACKEND_MODEL_CHECKPOINT_PATH=models/checkpoints/best.ckpt
 MYSQL_DATABASE=ecg_db
 MYSQL_USER=ecg
 MYSQL_PASSWORD=change-me
 MYSQL_ROOT_PASSWORD=change-me-too
-SECRET_KEY=change-me
-MODEL_CHECKPOINT_PATH=/app/models/checkpoints/best.ckpt
 ```
 
-## 3. 启动生产栈
+## 3. 部署
+
+推荐使用部署脚本（自动处理迁移和健康检查）：
 
 ```bash
+bash deploy.sh
+```
+
+或者手动执行：
+
+```bash
+# 1. 启动数据库并等待就绪
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d db
+
+# 2. 运行数据库迁移（必须！否则应用启动失败）
+docker compose --env-file .env.production -f docker-compose.prod.yml run --rm --no-deps backend alembic upgrade head
+
+# 3. 启动所有服务
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
 
@@ -63,9 +80,12 @@ docker compose --env-file .env.production -f docker-compose.prod.yml logs -f bac
 
 ## 4. 检查服务
 
-- 前端首页：`https://your-domain.com`
-- 健康检查：`https://your-domain.com/health`
-- API 文档：仅在启用 `API_DOCS_ENABLED=True` 时暴露
+先通过 HTTP 验证（默认不启用 TLS）：
+
+- 前端首页：`http://your-domain.com`
+- 健康检查：`http://your-domain.com/health`
+
+如需启用 HTTPS，参考 [production-deployment.md](./production-deployment.md) 第 12 节配置 TLS。
 
 ## 5. 开放端口
 

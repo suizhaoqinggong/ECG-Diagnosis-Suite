@@ -13,17 +13,20 @@
 ### 启动
 
 ```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
 docker compose up --build
 ```
+
+> 如果是本地直接运行（不用 Docker），才需要复制 `.env` 文件：
+> ```bash
+> cp backend/.env.example backend/.env
+> cp frontend/.env.example frontend/.env
+> ```
 
 默认服务：
 
 - 前端：`http://localhost`
 - 后端：`http://localhost:8000`
-- MySQL：`localhost:3306`
-- Redis：`localhost:6379`
+- MySQL：`localhost:3306`（仅开发环境暴露，生产环境不暴露）
 
 ### 常用命令
 
@@ -68,8 +71,12 @@ VITE_API_BASE_URL=http://localhost:8000
 
 ## 生产环境
 
-如果是服务器正式部署，不建议直接使用开发用的 `docker-compose.yml`。
-请优先参考：
+如果是服务器正式部署，请使用生产配置和专用部署脚本：
 
-- [docs/production-deployment.md](/Users/azure/ECG-Diagnosis-Suite/docs/production-deployment.md)
-- [docker-compose.prod.yml](/Users/azure/ECG-Diagnosis-Suite/docker-compose.prod.yml)
+```bash
+cp .env.production.example .env.production
+# 编辑 .env.production 填入真实值
+bash deploy.sh
+```
+
+详细说明见 [production-deployment.md](./production-deployment.md)。
