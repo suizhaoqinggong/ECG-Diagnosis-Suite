@@ -2,10 +2,15 @@
 """
 创建测试用的ECG图像
 """
-import numpy as np
-import cv2
+import logging
 import sys
 from pathlib import Path
+
+import cv2
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
 
 def create_test_ecg_image(output_path: str = "test_ecg.png"):
     """创建测试ECG图像"""
@@ -64,7 +69,7 @@ def create_test_ecg_image(output_path: str = "test_ecg.png"):
 
     # 保存图像
     cv2.imwrite(output_path, image)
-    print(f"✅ 测试ECG图像已创建: {output_path}")
+    logger.info("测试ECG图像已创建: %s", output_path)
     return output_path
 
 

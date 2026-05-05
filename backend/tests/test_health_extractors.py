@@ -1,32 +1,34 @@
-import pytest
+import asyncio
 from pathlib import Path
-from app.services.health_pipeline.extractors import PDFTextExtractor, ImageTextExtractor
 
-# Test fixtures
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+from reportlab.pdfgen import canvas
 
-class TestPDFTextExtractor:
-    def test_extract_text_from_pdf(self):
-        extractor = PDFTextExtractor()
-        # Test with a sample PDF
-        pdf_path = FIXTURES_DIR / "sample_health_report.pdf"
-        if pdf_path.exists():
-            text = extractor.extract(pdf_path)
-            assert len(text) > 0
-            assert "体检报告" in text or "health report" in text.lower()
-        else:
-            # Basic test if fixture doesn't exist
-            pytest.skip("Sample PDF fixture not available")
+from app.services.health_pipeline.extractors import (
+    extract_pdf_text,
+    extract_report_image_text,
+)
 
-class TestImageTextExtractor:
-    def test_extract_text_from_image(self):
-        extractor = ImageTextExtractor()
-        # Test with a sample image
-        image_path = FIXTURES_DIR / "sample_blood_test.png"
-        if image_path.exists():
-            text = extractor.extract(image_path)
-            assert len(text) > 0
-            assert any(keyword in text for keyword in ["血红蛋白", "白细胞", "Hb", "WBC"])
-        else:
-            # Basic test if fixture doesn't exist
-            pytest.skip("Sample image fixture not available")
+
+class StubVisionExtractor:
+    async def extract(self, image_path: Path) -> str:
+        return "甲状腺超声提示 TI-RADS 3 类结节"
+
+
+def test_extract_pdf_text_returns_plain_text(tmp_path):
+    pdf_path = tmp_path / "report.pdf"
+    pdf = canvas.Canvas(str(pdf_path))
+    pdf.drawString(72, 720, "LDL 4.9 mmol/L")
+    pdf.save()
+
+    text = extract_pdf_text(pdf_path)
+
+    assert "LDL 4.9 mmol/L" in text
+
+
+def test_extract_report_image_text_uses_provider(tmp_path):
+    image_path = tmp_path / "report.jpg"
+    image_path.write_bytes(b"fake-image")
+
+    text = asyncio.run(extract_report_image_text(image_path, StubVisionExtractor()))
+
+    assert "TI-RADS 3" in text

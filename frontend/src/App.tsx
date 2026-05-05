@@ -1,21 +1,36 @@
-import { useState } from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import ErrorBoundary from './components/ErrorBoundary'
-import HomePage from './pages/HomePage'
+import AppLayout from './components/AppLayout'
+import WorkspaceLayout from './components/WorkspaceLayout'
+import ReadReportPage from './pages/ReadReportPage'
+import UploadECGPage from './pages/UploadECGPage'
+import MyReportsPage from './pages/MyReportsPage'
+import AccountPage from './pages/AccountPage'
+import ResultPageRoute from './pages/ResultPageRoute'
 import { AuthProvider } from './auth/AuthProvider'
 import { WorkspaceProvider } from './controllers/WorkspaceProvider'
-import type { NavigationDestination } from './types/navigation'
 
 function App() {
-  const [destination, setDestination] = useState<NavigationDestination>('read-report')
-
   return (
     <ErrorBoundary>
       <AuthProvider>
         <WorkspaceProvider>
-          <div className="min-h-screen bg-transparent text-[var(--ink)]">
-            <HomePage destination={destination} onNavigate={setDestination} />
-          </div>
+          <BrowserRouter>
+            <div className="min-h-screen bg-transparent text-[var(--ink)]">
+              <Routes>
+                <Route element={<AppLayout />}>
+                  <Route element={<WorkspaceLayout />}>
+                    <Route index element={<ReadReportPage />} />
+                    <Route path="upload" element={<UploadECGPage />} />
+                  </Route>
+                  <Route path="reports" element={<MyReportsPage />} />
+                  <Route path="account" element={<AccountPage />} />
+                  <Route path="result" element={<ResultPageRoute />} />
+                </Route>
+              </Routes>
+            </div>
+          </BrowserRouter>
         </WorkspaceProvider>
         <Toaster
           position="top-center"

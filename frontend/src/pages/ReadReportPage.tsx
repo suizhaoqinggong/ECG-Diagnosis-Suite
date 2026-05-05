@@ -1,9 +1,5 @@
-import { useRef } from 'react'
-import type { NavigationDestination } from '@/types/navigation'
-
-interface ReadReportPageProps {
-  onNavigate: (dest: NavigationDestination) => void
-}
+import { useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 function FileSearchIcon() {
   return (
@@ -84,16 +80,17 @@ function UploadIcon() {
   )
 }
 
-export default function ReadReportPage({ onNavigate }: ReadReportPageProps) {
+export default function ReadReportPage() {
+  const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handlePrimaryCTA = () => {
+  const handlePrimaryCTA = useCallback(() => {
     fileInputRef.current?.click()
-  }
+  }, [])
 
-  const handleFileSelected = () => {
-    onNavigate('upload-ecg')
-  }
+  const handleFileSelected = useCallback(() => {
+    navigate('/upload')
+  }, [navigate])
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 md:px-8 md:py-16">
@@ -106,7 +103,6 @@ export default function ReadReportPage({ onNavigate }: ReadReportPageProps) {
         onChange={handleFileSelected}
       />
 
-      {/* Hero Section */}
       <section className="text-center space-y-6 pb-12 md:pb-16">
         <h1 className="reading-copy text-4xl leading-tight tracking-tight text-[var(--ink)] md:text-5xl lg:text-[3.5rem]">
           读懂你的检查报告
@@ -126,7 +122,7 @@ export default function ReadReportPage({ onNavigate }: ReadReportPageProps) {
           </button>
           <button
             type="button"
-            onClick={() => onNavigate('upload-ecg')}
+            onClick={() => navigate('/upload')}
             className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-8 py-4 text-base font-medium text-[var(--ink-soft)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink)] hover:bg-white/80"
           >
             上传 ECG / 健康资料
@@ -139,7 +135,6 @@ export default function ReadReportPage({ onNavigate }: ReadReportPageProps) {
         </p>
       </section>
 
-      {/* Capability Cards */}
       <section className="grid gap-6 pb-12 md:grid-cols-3 md:pb-16">
         <div className="rounded-[28px] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-[0_14px_36px_rgba(84,69,53,0.06)] md:p-7">
           <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">
@@ -220,7 +215,6 @@ export default function ReadReportPage({ onNavigate }: ReadReportPageProps) {
         </div>
       </section>
 
-      {/* Privacy & Trust Section */}
       <section className="rounded-[28px] border border-[var(--border)] bg-[var(--surface)] p-6 shadow-[0_14px_36px_rgba(84,69,53,0.04)] md:p-8">
         <h2 className="reading-copy text-2xl font-medium tracking-tight text-[var(--ink)] md:text-3xl">
           数据安全与使用须知

@@ -1,8 +1,9 @@
 import type { ConversationMessage, AttachedFileSummary } from '@/types/chat'
 import type { DiagnosisResultData } from '@/api'
+import type { HealthAnalysisResult } from '@/types/health'
 import { chatApi, type MessageCreate, type MessageResponse, type SessionResponse } from '@/api/chat'
 import type { ChatSession } from '@/types/chat'
-import { createEmptySession, buildSessionPreview } from './workspaceReducer'
+import { createEmptySession, buildSessionPreview } from './reducers/helpers'
 
 // ===== Message mapping =====
 
@@ -14,9 +15,14 @@ export function normalizeMessageStatus(value?: string): ConversationMessage['sta
 export function mapRemoteMessage(message: MessageResponse): ConversationMessage {
   const content = message.content || ''
   const attachmentPayload = message.attachments as { items?: AttachedFileSummary[] } | null
+  const resultPayload = (message.result as Record<string, unknown> | null) ?? null
   const normalizedTitle =
     typeof message.title === 'string' && message.title.trim().length > 0
       ? message.title
+      : undefined
+  const errorDetail =
+    message.status === 'error' && typeof resultPayload?.errorDetail === 'string'
+      ? resultPayload.errorDetail
       : undefined
   return {
     id: message.id,
@@ -25,7 +31,8 @@ export function mapRemoteMessage(message: MessageResponse): ConversationMessage 
       message.type === 'intro' ||
       message.type === 'prompt' ||
       message.type === 'guidance' ||
-      message.type === 'diagnosis'
+      message.type === 'diagnosis' ||
+      message.type === 'health_report'
         ? message.type
         : 'prompt',
     title: normalizedTitle,
@@ -34,8 +41,9 @@ export function mapRemoteMessage(message: MessageResponse): ConversationMessage 
     attachments: Array.isArray(attachmentPayload?.items)
       ? attachmentPayload.items
       : undefined,
-    result: (message.result as DiagnosisResultData | null) ?? undefined,
+    result: (resultPayload as DiagnosisResultData | HealthAnalysisResult | null) ?? undefined,
     status: normalizeMessageStatus(message.status) ?? 'completed',
+    errorDetail,
   }
 }
 

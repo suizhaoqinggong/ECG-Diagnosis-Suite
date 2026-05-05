@@ -8,28 +8,28 @@ export default function EmptyStateGuide() {
           </svg>
         </div>
         <h3 className="reading-copy text-2xl tracking-tight text-[var(--ink)]">
-          Getting started
+          开始使用
         </h3>
         <p className="mx-auto max-w-md text-base leading-7 text-[var(--ink-soft)]">
-          Upload an ECG image or signal pair and the workspace will build a readable interpretation below.
+          上传心电图图像或信号对，工作区将在下方生成可读的分析报告。
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-5">
-          <p className="text-[0.68rem] font-medium uppercase tracking-[0.28em] text-[var(--ink-muted)]">Step 1</p>
-          <p className="mt-2 reading-copy text-base font-medium text-[var(--ink)]">Attach ECG data</p>
-          <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">PNG/JPG image or a matched .dat + .hea signal pair.</p>
+          <p className="text-[0.68rem] font-medium uppercase tracking-[0.28em] text-[var(--ink-muted)]">步骤 1</p>
+          <p className="mt-2 reading-copy text-base font-medium text-[var(--ink)]">上传心电数据</p>
+          <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">PNG/JPG 图像或匹配的 .dat + .hea 信号对。</p>
         </div>
         <div className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-5">
-          <p className="text-[0.68rem] font-medium uppercase tracking-[0.28em] text-[var(--ink-muted)]">Step 2</p>
-          <p className="mt-2 reading-copy text-base font-medium text-[var(--ink)]">Add a note</p>
-          <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">Describe symptoms or clinical context for a richer interpretation.</p>
+          <p className="text-[0.68rem] font-medium uppercase tracking-[0.28em] text-[var(--ink-muted)]">步骤 2</p>
+          <p className="mt-2 reading-copy text-base font-medium text-[var(--ink)]">添加备注</p>
+          <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">描述症状或临床背景，获得更丰富的解读。</p>
         </div>
         <div className="rounded-[22px] border border-[var(--border)] bg-[var(--surface-strong)] p-5">
-          <p className="text-[0.68rem] font-medium uppercase tracking-[0.28em] text-[var(--ink-muted)]">Step 3</p>
-          <p className="mt-2 reading-copy text-base font-medium text-[var(--ink)]">Review results</p>
-          <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">The diagnosis report stays in the conversation for reference and export.</p>
+          <p className="text-[0.68rem] font-medium uppercase tracking-[0.28em] text-[var(--ink-muted)]">步骤 3</p>
+          <p className="mt-2 reading-copy text-base font-medium text-[var(--ink)]">查看结果</p>
+          <p className="mt-1 text-sm leading-6 text-[var(--ink-soft)]">诊断报告保留在对话中，可随时查看和导出。</p>
         </div>
       </div>
     </div>

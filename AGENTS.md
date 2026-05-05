@@ -1,27 +1,27 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-`backend/app/` contains the FastAPI app: routes in `api/`, config and infrastructure in `core/`, ORM models in `models/`, and business logic in `services/`. ECG preprocessing and inference live in `backend/ml/`, and migrations live in `backend/alembic/versions/`. `frontend/src/` contains the React app, organized into `components/`, `pages/`, `auth/`, `api/`, `controllers/`, `utils/`, and `__tests__/`. Repository-level regression tests live in `tests/`. Generated files belong in `data/uploads/`, `data/reports/`, and `models/checkpoints/`; keep source changes out of those paths unless updating fixtures or model placeholders.
+`backend/app/` holds the FastAPI app: routes in `api/`, settings in `core/`, ORM models in `models/`, and business logic in `services/`. ECG preprocessing and inference live in `backend/ml/`; migrations live in `backend/alembic/versions/`; backend tests live in `backend/tests/`. `frontend/src/` contains the React app, organized into `components/`, `pages/`, `auth/`, `api/`, `controllers/`, `types/`, `utils/`, and `__tests__/`. Checks live in `tests/`. Treat `data/`, `backend/data/uploads/`, `backend/data/reports/`, and `models/` as runtime assets unless updating fixtures.
 
 ## Build, Test, and Development Commands
 - `cd backend && uv venv .venv --python 3.11 && uv pip install --python .venv/bin/python -r requirements.txt`: create the backend environment.
-- `./start.sh`: start the backend from the repository root.
-- `cd backend && .venv/bin/python -m alembic upgrade head`: apply migrations before running against MySQL.
-- `cd frontend && npm install && npm run dev`: start the Vite frontend.
+- `./start.sh`: start the backend from the repo root.
+- `cd backend && .venv/bin/python -m alembic upgrade head`: apply schema migrations.
+- `cd frontend && npm install && npm run dev`: start the frontend on `:5173`.
 - `cd frontend && npm run build`: type-check and build production assets.
 - `cd frontend && npm run lint`: run ESLint.
-- `./backend/.venv/bin/python -m pytest -q tests backend/tests`: run backend and repo-level Python tests.
-- `cd frontend && npm test -- --run` or `npm run test:coverage`: run Vitest once, optionally with coverage output.
-- `docker compose up --build`: boot the full stack with MySQL.
+- `./backend/.venv/bin/python -m pytest -q tests backend/tests`: run Pytest.
+- `cd frontend && npm test -- --run` or `npm run test:coverage`: run Vitest once, with optional coverage output.
+- `docker compose up --build`: boot frontend, backend, and MySQL together.
 
 ## Coding Style & Naming Conventions
-Use 4-space indentation in Python and keep imports Black/isort-friendly. Use 2-space indentation in TypeScript/TSX. Name React components with `PascalCase`, hooks with `useCamelCase`, Python modules with `snake_case.py`, and tests with behavior-focused names. Prefer explicit types in TypeScript and type hints in Python. Frontend linting is enforced with ESLint.
+Use 4-space indentation in Python and format backend changes with `black app/ && isort app/`. Follow the existing 2-space indentation style in TypeScript/TSX. Use `PascalCase` for React components, `useCamelCase` for hooks, `snake_case.py` for Python modules, and `test_*.py` or `*.test.ts(x)` for tests. Keep endpoints under `/api` and preserve Chinese-first medical copy in diagnosis flows.
 
 ## Testing Guidelines
-Place backend tests in `backend/tests/` or `tests/` as `test_*.py`. Place frontend tests under `frontend/src/__tests__/` as `*.test.ts` or `*.test.tsx`. No hard coverage threshold is configured; add or update tests for every behavior change, especially around uploads, auth, diagnosis flows, and migrations.
+Backend tests use Pytest; frontend tests use Vitest with Testing Library. Add or update tests for every behavior change, especially auth, uploads, health pipelines, and report generation. No enforced coverage threshold is configured.
 
 ## Commit & Pull Request Guidelines
-Recent history uses conventional, imperative subjects such as `feat(deploy): ...`, `fix: ...`, `test: ...`, `security: ...`, and `chore: ...`. Keep commits scoped to one logical change. PRs should summarize impact, list verification commands, note schema or env changes, link the issue when available, and include screenshots for frontend UI work.
+Recent history follows conventional, imperative subjects such as `feat: ...`, `fix: ...`, `docs: ...`, `test: ...`, and `security: ...`, with optional scopes like `feat(deploy): ...`. Keep each commit focused on one logical change. PRs should summarize impact, list verification commands, note schema or env changes, link the issue when available, and include screenshots for frontend UI work.
 
 ## Security & Configuration Tips
-Start from `backend/.env.example` and `frontend/.env.example`; never commit populated `.env` files or secrets. Validate `MODEL_CHECKPOINT_PATH` before production runs, and do not commit generated uploads, reports, or local database files.
+Start from `backend/.env.example`, `frontend/.env.example`, and `.env.production.example`; never commit populated `.env` files or secrets. Verify checkpoint placement or `MODEL_CHECKPOINT_PATH` before production runs, and avoid committing generated uploads, reports, or local database artifacts unless they are intentional fixtures.

@@ -104,10 +104,7 @@ async def init_db():
     """初始化数据库"""
     Base = _get_base()
     # Ensure all models are imported so they register with Base.metadata
-    import app.models.user  # noqa: F401
-    import app.models.refresh_token  # noqa: F401
-    import app.models.chat  # noqa: F401
-    import app.models.rate_limit  # noqa: F401
+    import app.models  # noqa: F401
 
     async with engine.begin() as conn:
         table_names = set(

@@ -26,7 +26,7 @@ export default class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBo
         <div className="flex min-h-screen items-center justify-center px-6">
           <div className="max-w-md space-y-6 text-center">
             <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-              Something went wrong
+              出现错误
             </p>
             <p className="reading-copy text-2xl leading-tight tracking-tight text-[var(--ink)]">
               页面遇到了意外错误

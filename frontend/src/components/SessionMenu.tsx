@@ -66,7 +66,7 @@ export default function SessionMenu({
         onKeyDown={handleKeyDown}
         onBlur={handleRenameSubmit}
         className="w-full rounded border border-[var(--border)] px-2 py-1 text-sm text-[var(--ink)]"
-        aria-label="Edit session title"
+        aria-label="编辑对话标题"
       />
     )
   }
@@ -76,7 +76,7 @@ export default function SessionMenu({
       <button
         onClick={() => setMenuOpen(!menuOpen)}
         className="rounded p-1 text-[var(--ink-muted)] hover:bg-white/60"
-        aria-label="Session options"
+        aria-label="对话选项"
         aria-expanded={menuOpen}
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -95,18 +95,18 @@ export default function SessionMenu({
             }}
             className="w-full px-4 py-2 text-left text-sm text-[var(--ink)] hover:bg-white/60"
           >
-            Rename
+            重命名
           </button>
           <button
             onClick={() => {
-              if (confirm('Delete this session?')) {
+              if (confirm('删除此对话？')) {
                 onDelete(sessionId)
               }
               setMenuOpen(false)
             }}
             className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
           >
-            Delete
+            删除
           </button>
         </div>
       )}

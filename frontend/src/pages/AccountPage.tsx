@@ -4,11 +4,7 @@ import { changePassword, deleteAccount } from '../auth/api'
 import { getAuthErrorMessage } from '../auth/messages'
 import toast from 'react-hot-toast'
 
-interface AccountPageProps {
-  onNavigate: (dest: import('../types/navigation').NavigationDestination) => void
-}
-
-export default function AccountPage({ onNavigate: _onNavigate }: AccountPageProps) {
+export default function AccountPage() {
   const { user, logout } = useAuth()
 
   const [currentPassword, setCurrentPassword] = useState('')

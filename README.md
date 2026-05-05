@@ -237,11 +237,11 @@ For detailed request/response schemas, see [docs/api.md](docs/api.md) or the liv
 - This project is for research and engineering demonstration, not clinical diagnosis.
 - The PDF export service exists in the backend but the frontend download button is not yet wired.
 - The legacy `/api/history` endpoint has been removed; session history is managed through `/api/chat/*`.
-- The health pipeline currently uses stub extraction for report images; production deployments should configure an OpenAI-compatible vision provider via `OPENAI_HEALTH_VISION_MODEL`.
+- Report-image extraction uses a configured OpenAI-compatible vision provider when `OPENAI_HEALTH_VISION_MODEL` and matching API credentials are set. Without that provider, image uploads are still accepted but may not produce text-derived findings.
 - Diagnosis endpoints support anonymous access; attaching a Bearer token writes results to the authenticated user's history.
 - Automated tests live in `tests/`, `backend/tests/`, and `frontend/src/__tests__/`.
-- Health-specific backend tests: `backend/tests/test_health_*.py` (6 files).
-- Frontend health tests: `frontend/src/__tests__/types/health.test.ts` (+ additional tests pending Task 5).
+- Health-specific backend tests: `backend/tests/test_health_*.py`.
+- Frontend health coverage includes `types/health`, `workspaceReducer.health`, `useWorkspaceController.health`, `HealthReport`, and `ConversationMessage.health`.
 
 ## License
 

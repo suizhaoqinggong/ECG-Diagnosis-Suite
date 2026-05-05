@@ -116,7 +116,7 @@ describe('QCWarning', () => {
         />
       )
 
-      expect(screen.getByText('Needs Review')).toBeInTheDocument()
+      expect(screen.getByText('需复查')).toBeInTheDocument()
     })
 
     it('displays correct badge label for "fail" severity', () => {
@@ -127,7 +127,7 @@ describe('QCWarning', () => {
         />
       )
 
-      expect(screen.getByText('Low Reliability')).toBeInTheDocument()
+      expect(screen.getByText('低可靠性')).toBeInTheDocument()
     })
   })
 
@@ -141,10 +141,10 @@ describe('QCWarning', () => {
         />
       )
 
-      expect(screen.queryByText('Lead 0')).not.toBeInTheDocument()
-      expect(screen.queryByText('Lead 1')).not.toBeInTheDocument()
-      expect(screen.queryByText('Lead 2')).not.toBeInTheDocument()
-      expect(screen.queryByText('Lead 3')).not.toBeInTheDocument()
+      expect(screen.queryByText('导联 0')).not.toBeInTheDocument()
+      expect(screen.queryByText('导联 1')).not.toBeInTheDocument()
+      expect(screen.queryByText('导联 2')).not.toBeInTheDocument()
+      expect(screen.queryByText('导联 3')).not.toBeInTheDocument()
     })
 
     it('shows expand button when per_lead_qc is provided', () => {
@@ -156,7 +156,7 @@ describe('QCWarning', () => {
         />
       )
 
-      expect(screen.getByText('View Details')).toBeInTheDocument()
+      expect(screen.getByText('查看详情')).toBeInTheDocument()
     })
 
     it('does not show expand button when per_lead_qc is empty', () => {
@@ -168,7 +168,7 @@ describe('QCWarning', () => {
         />
       )
 
-      expect(screen.queryByText('View Details')).not.toBeInTheDocument()
+      expect(screen.queryByText('查看详情')).not.toBeInTheDocument()
     })
 
     it('does not show expand button when per_lead_qc is undefined', () => {
@@ -179,7 +179,7 @@ describe('QCWarning', () => {
         />
       )
 
-      expect(screen.queryByText('View Details')).not.toBeInTheDocument()
+      expect(screen.queryByText('查看详情')).not.toBeInTheDocument()
     })
 
     it('expands to show per-lead details when clicked', () => {
@@ -191,13 +191,13 @@ describe('QCWarning', () => {
         />
       )
 
-      const expandButton = screen.getByText('View Details')
+      const expandButton = screen.getByText('查看详情')
       fireEvent.click(expandButton)
 
-      expect(screen.getByText('Lead 0')).toBeInTheDocument()
-      expect(screen.getByText('Lead 1')).toBeInTheDocument()
-      expect(screen.getByText('Lead 2')).toBeInTheDocument()
-      expect(screen.getByText('Lead 3')).toBeInTheDocument()
+      expect(screen.getByText('导联 0')).toBeInTheDocument()
+      expect(screen.getByText('导联 1')).toBeInTheDocument()
+      expect(screen.getByText('导联 2')).toBeInTheDocument()
+      expect(screen.getByText('导联 3')).toBeInTheDocument()
     })
 
     it('displays lead quality badges with correct styles', () => {
@@ -209,12 +209,12 @@ describe('QCWarning', () => {
         />
       )
 
-      fireEvent.click(screen.getByText('View Details'))
+      fireEvent.click(screen.getByText('查看详情'))
 
-      const lead0 = screen.getByText('Lead 0').closest('[data-lead-index]')
-      const lead1 = screen.getByText('Lead 1').closest('[data-lead-index]')
-      const lead2 = screen.getByText('Lead 2').closest('[data-lead-index]')
-      const lead3 = screen.getByText('Lead 3').closest('[data-lead-index]')
+      const lead0 = screen.getByText('导联 0').closest('[data-lead-index]')
+      const lead1 = screen.getByText('导联 1').closest('[data-lead-index]')
+      const lead2 = screen.getByText('导联 2').closest('[data-lead-index]')
+      const lead3 = screen.getByText('导联 3').closest('[data-lead-index]')
 
       expect(lead0).toHaveAttribute('data-quality', 'good')
       expect(lead1).toHaveAttribute('data-quality', 'warn')
@@ -235,9 +235,9 @@ describe('QCWarning', () => {
         />
       )
 
-      fireEvent.click(screen.getByText('View Details'))
+      fireEvent.click(screen.getByText('查看详情'))
 
-      const lead0 = screen.getByText('Lead 0').closest('[data-lead-index]')
+      const lead0 = screen.getByText('导联 0').closest('[data-lead-index]')
       expect(lead0).toHaveClass('bg-orange-100', 'text-orange-800', 'border-orange-200')
     })
 
@@ -250,7 +250,7 @@ describe('QCWarning', () => {
         />
       )
 
-      fireEvent.click(screen.getByText('View Details'))
+      fireEvent.click(screen.getByText('查看详情'))
 
       // Use function matcher since text may be split across elements
       expect(screen.getByText((content) => content.includes('95') && content.includes('%'))).toBeInTheDocument()
@@ -267,11 +267,11 @@ describe('QCWarning', () => {
         />
       )
 
-      fireEvent.click(screen.getByText('View Details'))
-      expect(screen.getByText('Lead 0')).toBeInTheDocument()
+      fireEvent.click(screen.getByText('查看详情'))
+      expect(screen.getByText('导联 0')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByText('Hide Details'))
-      expect(screen.queryByText('Lead 0')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByText('隐藏详情'))
+      expect(screen.queryByText('导联 0')).not.toBeInTheDocument()
     })
 
     it('toggles expand/collapse button text', () => {
@@ -283,13 +283,13 @@ describe('QCWarning', () => {
         />
       )
 
-      expect(screen.getByText('View Details')).toBeInTheDocument()
+      expect(screen.getByText('查看详情')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByText('View Details'))
-      expect(screen.getByText('Hide Details')).toBeInTheDocument()
+      fireEvent.click(screen.getByText('查看详情'))
+      expect(screen.getByText('隐藏详情')).toBeInTheDocument()
 
-      fireEvent.click(screen.getByText('Hide Details'))
-      expect(screen.getByText('View Details')).toBeInTheDocument()
+      fireEvent.click(screen.getByText('隐藏详情'))
+      expect(screen.getByText('查看详情')).toBeInTheDocument()
     })
   })
 
@@ -318,8 +318,8 @@ describe('QCWarning', () => {
         />
       )
 
-      fireEvent.click(screen.getByText('View Details'))
-      expect(screen.getByText('Lead 0')).toBeInTheDocument()
+      fireEvent.click(screen.getByText('查看详情'))
+      expect(screen.getByText('导联 0')).toBeInTheDocument()
     })
 
     it('handles all leads failing', () => {
@@ -338,10 +338,10 @@ describe('QCWarning', () => {
         />
       )
 
-      fireEvent.click(screen.getByText('View Details'))
+      fireEvent.click(screen.getByText('查看详情'))
 
       for (let i = 0; i < 12; i++) {
-        expect(screen.getByText(`Lead ${i}`)).toBeInTheDocument()
+        expect(screen.getByText(`导联 ${i}`)).toBeInTheDocument()
       }
     })
   })

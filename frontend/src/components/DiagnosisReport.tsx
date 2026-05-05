@@ -5,6 +5,7 @@ import { copyToClipboard, formatReportAsText } from '@/utils/clipboard'
 import { formatConfidence } from '@/utils'
 import { mapDiagnosisSeverityToRiskOrDefault } from '@/utils/severity'
 import QCWarning from './QCWarning'
+import ReportShell from './result/ReportShell'
 import ConclusionHero from './result/ConclusionHero'
 import WhatItMeans from './result/WhatItMeans'
 import RiskCard from './result/RiskCard'
@@ -72,7 +73,7 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
   }
 
   return (
-    <section className="printable-report space-y-8 rounded-[24px] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-[0_16px_40px_rgba(84,69,53,0.06)] md:p-8">
+    <ReportShell>
       {/* Action buttons */}
       <div className="flex gap-2">
         <button
@@ -225,6 +226,6 @@ export default function DiagnosisReport({ result }: DiagnosisReportProps) {
           </p>
         )}
       </div>
-    </section>
+    </ReportShell>
   )
 }

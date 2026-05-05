@@ -150,7 +150,7 @@ describe('mapRemoteMessage', () => {
   }
 
   it('maps all recognized message types', () => {
-    for (const type of ['intro', 'prompt', 'guidance', 'diagnosis']) {
+    for (const type of ['intro', 'prompt', 'guidance', 'diagnosis', 'health_report']) {
       const result = mapRemoteMessage(makeRemoteMessage({ type }))
       expect(result.type).toBe(type)
     }
@@ -197,6 +197,16 @@ describe('mapRemoteMessage', () => {
   it('sets result to undefined when null', () => {
     const result = mapRemoteMessage(makeRemoteMessage({ result: null }))
     expect(result.result).toBeUndefined()
+  })
+
+  it('hydrates error detail from result payload for error messages', () => {
+    const result = mapRemoteMessage(
+      makeRemoteMessage({
+        status: 'error',
+        result: { errorDetail: '后台分析失败' },
+      }),
+    )
+    expect(result.errorDetail).toBe('后台分析失败')
   })
 
   it('normalizes valid status and defaults to completed', () => {

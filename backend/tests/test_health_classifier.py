@@ -24,6 +24,10 @@ def test_classify_asset_marks_images_as_report_image():
     assert classify_asset("photo.jpeg", "image/jpeg") == "report_image"
 
 
+def test_classify_asset_marks_ecg_named_images_as_ecg_image():
+    assert classify_asset("ecg-lead.png", "image/png") == "ecg_image"
+
+
 def test_classify_asset_rejects_unsupported():
     with pytest.raises(ValueError, match="Unsupported upload"):
         classify_asset("data.csv", "text/csv")

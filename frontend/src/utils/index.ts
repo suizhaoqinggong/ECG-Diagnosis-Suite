@@ -5,7 +5,7 @@ export function formatConfidence(value: number): string {
 export function formatConversationTimestamp(value: string): string {
   const date = new Date(value)
 
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('zh-CN', {
     month: 'long',
     day: 'numeric',
     hour: 'numeric',
@@ -19,13 +19,13 @@ export function formatSidebarTimestamp(value: string): string {
   const sameDay = now.toDateString() === date.toDateString()
 
   if (sameDay) {
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat('zh-CN', {
       hour: 'numeric',
       minute: '2-digit',
     }).format(date)
   }
 
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('zh-CN', {
     month: 'short',
     day: 'numeric',
   }).format(date)

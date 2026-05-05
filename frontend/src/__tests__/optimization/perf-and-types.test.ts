@@ -45,7 +45,7 @@ describe('submit callback stability', () => {
     const path = await import('path')
     const controllerPath = path.resolve(
       __dirname,
-      '../../controllers/useWorkspaceController.ts',
+      '../../controllers/hooks/useSubmissionFlow.ts',
     )
     const source = fs.readFileSync(controllerPath, 'utf-8')
 
@@ -63,7 +63,7 @@ describe('submit callback stability', () => {
     const path = await import('path')
     const controllerPath = path.resolve(
       __dirname,
-      '../../controllers/useWorkspaceController.ts',
+      '../../controllers/hooks/useSubmissionFlow.ts',
     )
     const source = fs.readFileSync(controllerPath, 'utf-8')
 

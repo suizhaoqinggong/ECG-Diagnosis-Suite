@@ -27,7 +27,7 @@ function PendingIndicator({ phase, progress }: { phase: 'uploading' | 'processin
     return (
       <div className="space-y-3">
         <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-          Uploading files...
+          正在上传文件...
         </p>
         <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--border)]">
           <div
@@ -41,7 +41,7 @@ function PendingIndicator({ phase, progress }: { phase: 'uploading' | 'processin
 
   return (
     <div className="flex items-center gap-4">
-      <div className="ecg-pulse w-12 h-12" aria-label="Processing">
+      <div className="ecg-pulse w-12 h-12" aria-label="处理中">
         <svg viewBox="0 0 48 48" className="h-full w-full">
           <path
             d="M4 24h8l4-12 4 24 4-12 4 12h8"
@@ -53,7 +53,7 @@ function PendingIndicator({ phase, progress }: { phase: 'uploading' | 'processin
         </svg>
       </div>
       <p className="reading-copy text-lg text-[var(--ink-soft)]">
-        AI is analyzing health data...
+        AI 正在分析健康数据...
       </p>
     </div>
   )
@@ -63,8 +63,8 @@ function ErrorMessage({ errorDetail, onRetry }: { errorDetail: string; onRetry?:
   return (
     <div className="rounded-[30px] border-l-4 border-l-red-500 border border-[var(--border)] bg-[var(--surface-strong)] p-6">
       <p className="text-[0.7rem] font-medium uppercase tracking-[0.3em] text-[var(--ink-muted)]">
-        Analysis Failed
-      </p>
+        分析失败
+</p>
       <p className="reading-copy mt-3 text-lg text-[var(--ink-soft)]">
         {errorDetail}
       </p>
@@ -73,7 +73,7 @@ function ErrorMessage({ errorDetail, onRetry }: { errorDetail: string; onRetry?:
           onClick={onRetry}
           className="mt-4 rounded-full bg-[#2f2b26] px-5 py-2.5 text-sm font-medium text-white transition hover:bg-[#1f1c18]"
         >
-          Retry
+          重试
         </button>
       )}
     </div>
@@ -81,7 +81,7 @@ function ErrorMessage({ errorDetail, onRetry }: { errorDetail: string; onRetry?:
 }
 
 function ConversationMessage({ message, submissionPhase, uploadProgress, onRetry, onCancel }: ConversationMessageProps) {
-  const roleLabel = message.role === 'assistant' ? 'Health Analyst' : 'You'
+  const roleLabel = message.role === 'assistant' ? 'AI 分析' : '你'
 
   return (
     <article className="border-b border-[var(--border)] py-10 last:border-b-0 md:py-14">
@@ -121,7 +121,7 @@ function ConversationMessage({ message, submissionPhase, uploadProgress, onRetry
             </div>
           ) : null}
 
-          {message.type === 'diagnosis' && message.status === 'pending' ? (
+          {message.status === 'pending' && (message.type === 'diagnosis' || message.type === 'health_report') ? (
             <div className="rounded-[30px] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-[0_22px_55px_rgba(84,69,53,0.08)]">
               <PendingIndicator phase={submissionPhase === 'processing' ? 'processing' : 'uploading'} progress={uploadProgress ?? null} />
               {onCancel && (
@@ -129,12 +129,12 @@ function ConversationMessage({ message, submissionPhase, uploadProgress, onRetry
                   onClick={onCancel}
                   className="mt-4 rounded-full border border-[var(--border)] px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-white/60"
                 >
-                  Cancel
+                  取消
                 </button>
               )}
             </div>
           ) : message.status === 'error' ? (
-            <ErrorMessage errorDetail={message.errorDetail || 'Unknown error'} onRetry={onRetry} />
+            <ErrorMessage errorDetail={message.errorDetail || '未知错误'} onRetry={onRetry} />
           ) : message.type === 'health_report' && message.result ? (
             <HealthReport result={message.result as HealthAnalysisResult} />
           ) : message.type === 'diagnosis' && message.result ? (

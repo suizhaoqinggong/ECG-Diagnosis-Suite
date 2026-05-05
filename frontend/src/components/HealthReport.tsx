@@ -1,4 +1,5 @@
 import type { HealthAnalysisResult } from '@/types/health'
+import ReportShell from './result/ReportShell'
 import ConclusionHero from './result/ConclusionHero'
 import WhatItMeans from './result/WhatItMeans'
 import RiskCard from './result/RiskCard'
@@ -12,7 +13,7 @@ interface HealthReportProps {
 
 export default function HealthReport({ result }: HealthReportProps) {
   return (
-    <section className="printable-report space-y-8 rounded-[24px] border border-[var(--border)] bg-[var(--surface-strong)] p-6 shadow-[0_16px_40px_rgba(84,69,53,0.06)] md:p-8">
+    <ReportShell>
       {/* Section 1: Core Conclusion */}
       <ConclusionHero
         title={result.summary || `Overall Risk: ${result.overallRisk}`}
@@ -57,6 +58,6 @@ export default function HealthReport({ result }: HealthReportProps) {
           </div>
         </div>
       ) : null}
-    </section>
+    </ReportShell>
   )
 }

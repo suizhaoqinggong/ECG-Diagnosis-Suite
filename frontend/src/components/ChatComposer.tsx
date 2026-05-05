@@ -103,7 +103,7 @@ const ChatComposer = memo(function ChatComposer({
                     type="button"
                     onClick={() => onRemoveFile(file.id)}
                     className="rounded-full p-1 text-[var(--ink-muted)] transition hover:bg-white/80 hover:text-[var(--ink)]"
-                    aria-label={`Remove ${file.name}`}
+                    aria-label={`移除 ${file.name}`}
                   >
                     ×
                   </button>
@@ -119,7 +119,7 @@ const ChatComposer = memo(function ChatComposer({
             onPaste={handlePaste}
             disabled={isLoading}
             rows={4}
-            placeholder="Describe the study, add a note, or attach health files to begin analysis."
+            placeholder="描述检查内容、添加备注或上传健康文件开始分析。"
             className="reading-copy min-h-[120px] w-full resize-none border-0 bg-transparent px-1 text-[1.05rem] leading-8 text-[var(--ink)] outline-none placeholder:text-[var(--ink-muted)] disabled:cursor-not-allowed"
           />
 
@@ -127,7 +127,7 @@ const ChatComposer = memo(function ChatComposer({
             <div className="flex flex-wrap gap-2">
               <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.6)] px-4 py-2 text-sm font-medium text-[var(--ink-soft)] transition hover:border-[var(--border-strong)] hover:text-[var(--ink)]">
                 <AttachmentIcon />
-                Attach health files
+                上传健康文件
                 <input
                   type="file"
                   multiple
@@ -141,7 +141,7 @@ const ChatComposer = memo(function ChatComposer({
 
             <div className="flex items-center justify-between gap-4">
               <p className="text-xs uppercase tracking-[0.22em] text-[var(--ink-muted)]">
-                {isLoading ? 'Analyzing health data...' : 'Ctrl/Cmd + Enter to send'}
+                {isLoading ? '正在分析健康数据...' : 'Ctrl/Cmd + Enter 发送'}
               </p>
               <button
                 type="button"
@@ -150,14 +150,14 @@ const ChatComposer = memo(function ChatComposer({
                 className="inline-flex items-center gap-2 rounded-full bg-[#2f2b26] px-5 py-3 text-sm font-medium text-white transition hover:bg-[#1f1c18] disabled:cursor-not-allowed disabled:bg-[#b7aa9b]"
               >
                 <ArrowIcon />
-                {isLoading ? 'Analyzing' : 'Send'}
+                {isLoading ? '分析中' : '发送'}
               </button>
             </div>
           </div>
         </div>
 
         <p className="mt-3 px-1 text-sm text-[var(--ink-muted)]">
-          Supports PDF, PNG, JPG, JPEG, or a matched `.dat` + `.hea` pair. Text notes stay in the conversation for context.
+          支持 PDF、PNG、JPG、JPEG 或匹配的 .dat + .hea 信号对。文字备注保留在对话中作为上下文。
         </p>
       </div>
     </div>

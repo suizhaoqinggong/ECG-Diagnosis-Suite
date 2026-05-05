@@ -209,7 +209,7 @@ describe('useWorkspaceController login migration', () => {
     rerender()
 
     await waitFor(() => {
-      expect(toastMock.error).toHaveBeenCalledWith('Local history sync failed: sync failed')
+      expect(toastMock.error).toHaveBeenCalledWith('本地历史同步失败：sync failed')
     })
 
     expect(localStorage.removeItem).not.toHaveBeenCalledWith('ecg-persisted')

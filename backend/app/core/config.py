@@ -5,9 +5,10 @@ import logging
 import warnings
 from pathlib import Path
 from typing import List, Optional
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,10 @@ class Settings(BaseSettings):
     OPENAI_BASE_URL: str = "https://api.openai.com/v1"
     OPENAI_REPORT_MODEL: str = "gpt-4o-mini"
     OPENAI_TIMEOUT_SECONDS: int = 30
+    OPENAI_HEALTH_VISION_API_KEY: Optional[str] = None
+    OPENAI_HEALTH_VISION_BASE_URL: Optional[str] = None
+    OPENAI_HEALTH_VISION_MODEL: Optional[str] = None
+    OPENAI_HEALTH_VISION_TIMEOUT_SECONDS: int = 30
     ANTHROPIC_COMPAT_API_KEY: Optional[str] = None
     ANTHROPIC_COMPAT_BASE_URL: str = "https://open.bigmodel.cn/api/anthropic"
     ANTHROPIC_COMPAT_MODEL: str = "glm-5"
@@ -79,6 +84,33 @@ class Settings(BaseSettings):
         "http://localhost:5174",
         "http://localhost:3000",
     ]
+
+    @staticmethod
+    def _loopback_origin_variants(origin: str) -> list[str]:
+        parsed = urlparse(origin)
+        if parsed.hostname not in {"localhost", "127.0.0.1"}:
+            return [origin]
+
+        port = f":{parsed.port}" if parsed.port is not None else ""
+        return [
+            f"{parsed.scheme}://localhost{port}",
+            f"{parsed.scheme}://127.0.0.1{port}",
+        ]
+
+    @field_validator("CORS_ORIGINS", mode="after")
+    @classmethod
+    def normalize_loopback_cors_origins(cls, origins: List[str]) -> List[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+
+        for origin in origins:
+            for candidate in cls._loopback_origin_variants(origin):
+                if candidate in seen:
+                    continue
+                seen.add(candidate)
+                normalized.append(candidate)
+
+        return normalized
 
     @property
     def backend_dir(self) -> Path:

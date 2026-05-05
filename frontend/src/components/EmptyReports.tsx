@@ -1,10 +1,8 @@
-import type { NavigationDestination } from '@/types/navigation'
+import { useNavigate } from 'react-router-dom'
 
-interface EmptyReportsProps {
-  onNavigate: (dest: NavigationDestination) => void
-}
+export default function EmptyReports() {
+  const navigate = useNavigate()
 
-export default function EmptyReports({ onNavigate }: EmptyReportsProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-8">
       <div className="max-w-md space-y-8 text-center">
@@ -39,13 +37,13 @@ export default function EmptyReports({ onNavigate }: EmptyReportsProps) {
         </div>
         <div className="flex flex-wrap justify-center gap-3">
           <button
-            onClick={() => onNavigate('read-report')}
+            onClick={() => navigate('/')}
             className="rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
           >
             读懂已有报告
           </button>
           <button
-            onClick={() => onNavigate('upload-ecg')}
+            onClick={() => navigate('/upload')}
             className="rounded-full border border-[var(--border)] bg-white/60 px-6 py-3 text-sm font-medium text-[var(--ink-soft)] transition hover:bg-white/80"
           >
             上传 ECG

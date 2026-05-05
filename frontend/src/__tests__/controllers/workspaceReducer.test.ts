@@ -21,7 +21,7 @@ function makeFile(name: string, type = '', size = 1024): File {
   return new File(['x'.repeat(size)], name, { type })
 }
 
-function makeImageFile(name = 'ecg.png'): File {
+function makeImageFile(name = 'report.png'): File {
   return makeFile(name, 'image/png')
 }
 
@@ -45,7 +45,7 @@ function makeHeaAttachment(name = 'record.hea') {
   return { id, file, summary: { id, name, size: file.size, category: 'hea' as const } }
 }
 
-function makeImageAttachment(name = 'ecg.png') {
+function makeImageAttachment(name = 'report.png') {
   const file = makeImageFile(name)
   const id = createId()
   return { id, file, summary: { id, name, size: file.size, category: 'report_image' as const } }
@@ -301,13 +301,6 @@ describe('workspaceReducer', () => {
     expect(next.ui.isDragging).toBe(true)
   })
 
-  // --- SET_SIDEBAR_OPEN ---
-  it('sets sidebar state via SET_SIDEBAR_OPEN', () => {
-    const s = state()
-    const next = workspaceReducer(s, { type: 'SET_SIDEBAR_OPEN', open: true })
-    expect(next.ui.isSidebarOpen).toBe(true)
-  })
-
   // --- SET_RENAMING ---
   it('sets renaming session via SET_RENAMING', () => {
     const s = state()
@@ -380,15 +373,15 @@ describe('workspaceReducer', () => {
     expect(next.composer.validationErrors.length).toBeGreaterThan(0)
   })
 
-  it('image replaces existing dat+hea attachments via ADD_FILES', () => {
+  it('report images can be added alongside existing dat+hea attachments', () => {
     const s = state()
     const withPair = workspaceReducer(s, { type: 'ADD_FILES', files: [makeDatFile(), makeHeaFile()] })
     expect(withPair.composer.attachments).toHaveLength(2)
 
     const withImage = workspaceReducer(withPair, { type: 'ADD_FILES', files: [makeImageFile()] })
-    expect(withImage.composer.attachments).toHaveLength(1)
-    expect(withImage.composer.attachments[0].summary.category).toBe('report_image')
-    expect(withImage.composer.replacedFileNames).toHaveLength(2)
+    expect(withImage.composer.attachments).toHaveLength(3)
+    expect(withImage.composer.attachments.some(item => item.summary.category === 'report_image')).toBe(true)
+    expect(withImage.composer.replacedFileNames).toHaveLength(0)
   })
 
   it('tracks replaced dat file name when new dat added', () => {

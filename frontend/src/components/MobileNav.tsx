@@ -1,10 +1,5 @@
-import type { NavigationDestination } from '@/types/navigation'
+import { NavLink } from 'react-router-dom'
 import { NAV_ITEMS } from '@/types/navigation'
-
-interface MobileNavProps {
-  active: NavigationDestination
-  onChange: (dest: NavigationDestination) => void
-}
 
 function ReadIcon() {
   return (
@@ -51,7 +46,7 @@ const iconMap: Record<string, () => JSX.Element> = {
   account: AccountIcon,
 }
 
-export default function MobileNav({ active, onChange }: MobileNavProps) {
+export default function MobileNav() {
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 border-t border-[var(--border)] bg-[var(--surface-strong)]"
@@ -61,27 +56,32 @@ export default function MobileNav({ active, onChange }: MobileNavProps) {
       <div className="flex items-center justify-around">
         {NAV_ITEMS.map((item) => {
           const Icon = iconMap[item.icon]
-          const isActive = active === item.id
           return (
-            <button
+            <NavLink
               key={item.id}
-              type="button"
-              onClick={() => onChange(item.id)}
-              aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-[56px] min-w-[48px] flex-1 flex-col items-center justify-center gap-0.5 transition ${
-                isActive
-                  ? 'text-[var(--accent)]'
-                  : 'text-[var(--ink-muted)]'
-              }`}
+              to={item.path}
+              end={item.path === '/'}
+              aria-current="page"
+              className={({ isActive }) =>
+                `flex min-h-[56px] min-w-[48px] flex-1 flex-col items-center justify-center gap-0.5 relative transition ${
+                  isActive
+                    ? 'text-[var(--accent)]'
+                    : 'text-[var(--ink-muted)]'
+                }`
+              }
             >
-              <Icon />
-              <span className="text-[11px] font-medium leading-none">
-                {item.shortLabel}
-              </span>
-              {isActive && (
-                <span className="absolute top-0 h-[3px] w-8 rounded-full bg-[var(--accent)]" />
+              {({ isActive }) => (
+                <>
+                  <Icon />
+                  <span className="text-[11px] font-medium leading-none">
+                    {item.shortLabel}
+                  </span>
+                  {isActive && (
+                    <span className="absolute top-0 h-[3px] w-8 rounded-full bg-[var(--accent)]" />
+                  )}
+                </>
               )}
-            </button>
+            </NavLink>
           )
         })}
       </div>

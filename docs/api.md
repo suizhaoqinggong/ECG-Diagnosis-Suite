@@ -87,6 +87,7 @@
 - Content-Type: `multipart/form-data`
 - 字段：可重复的 `files`（支持 `.pdf`、`.png`、`.jpg`、`.jpeg`、`.dat`、`.hea`），可选的 `note`（临床备注），可选的 `session_id`
 - 鉴权：可匿名；带 Bearer token 时结果会关联到当前用户
+- 报告图片会在配置 `OPENAI_HEALTH_VISION_MODEL` 和对应 API 凭证后走视觉提取；文件名包含 `ecg` / `lead` / `心电图` 的图片会路由到 ECG AI 分析
 - 返回 `queued` 状态的任务 ID
 
 ### `GET /api/health/jobs/{job_id}`
@@ -95,6 +96,7 @@
 
 - 返回 `queued`、`processing`、`completed` 或 `failed` 状态
 - `completed` 时附带 `result`（含 `summary`、`overallRisk`、`findings`、`nextSteps`、`limitations`、`disclaimer`，以及可选的 `ecgResult`）
+- `findings` 的关键字段包括 `sourceType`、`title`、`summary`、`severity`、`actionHint`、`evidence`
 - `failed` 时附带 `error` 字段说明失败原因
 
 ## 认证接口

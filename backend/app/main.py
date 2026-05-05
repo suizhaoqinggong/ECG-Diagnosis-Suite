@@ -58,6 +58,29 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.API_DOCS_ENABLED else None,
 )
 
+
+import traceback as _traceback
+
+from fastapi import Request as _Request
+from fastapi.responses import JSONResponse as _JSONResponse
+
+
+@app.exception_handler(Exception)
+async def _global_exception_handler(_request: _Request, exc: Exception):
+    if settings.DEBUG:
+        return _JSONResponse(
+            status_code=500,
+            content={
+                "detail": str(exc),
+                "type": type(exc).__name__,
+                "traceback": _traceback.format_exc().splitlines()[-15:],
+            },
+        )
+    return _JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error"},
+    )
+
 app.add_middleware(
     TrustedHostMiddleware,
     allowed_hosts=settings.ALLOWED_HOSTS or ["*"],

@@ -8,6 +8,7 @@ SECRET_KEY enforcement, CORS configuration, security headers, origin validation.
 import sys
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -134,7 +135,8 @@ class TestCORSConfiguration:
         """Default CORS origins only allow local development servers."""
         s = Settings()
         for origin in s.CORS_ORIGINS:
-            assert "localhost" in origin
+            parsed = urlparse(origin)
+            assert parsed.hostname in {"localhost", "127.0.0.1"}
 
     def test_cors_origins_can_be_overridden(self):
         s = Settings(CORS_ORIGINS=["https://example.com"])

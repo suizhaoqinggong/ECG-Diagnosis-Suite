@@ -5,6 +5,11 @@ from typing import Tuple
 from .schemas import AssetType, ClassifiedAsset
 
 
+def _is_ecg_image_name(filename: str) -> bool:
+    lower_name = Path(filename).name.lower()
+    return any(keyword in lower_name for keyword in ("ecg", "心电图", "cardio", "lead"))
+
+
 def classify_asset(filename: str, content_type: str | None) -> str:
     """Classify a file into a simple kind string for the health pipeline."""
     suffix = Path(filename).suffix.lower()
@@ -13,6 +18,8 @@ def classify_asset(filename: str, content_type: str | None) -> str:
     if suffix in {".dat", ".hea"}:
         return "ecg_signal"
     if suffix in {".png", ".jpg", ".jpeg"}:
+        if _is_ecg_image_name(filename):
+            return "ecg_image"
         return "report_image"
     raise ValueError(f"Unsupported upload: {filename}")
 
@@ -43,10 +50,7 @@ class HealthAssetClassifier:
         base_type = self.EXTENSION_MAP[suffix]
 
         # Check if image is ECG image based on filename keywords
-        if base_type == AssetType.HEALTH_REPORT_IMAGE:
-            file_name_lower = path.name.lower()
-            for keyword in self.ECG_KEYWORDS:
-                if keyword in file_name_lower:
-                    return AssetType.ECG_IMAGE
+        if base_type == AssetType.HEALTH_REPORT_IMAGE and _is_ecg_image_name(filename):
+            return AssetType.ECG_IMAGE
 
         return base_type

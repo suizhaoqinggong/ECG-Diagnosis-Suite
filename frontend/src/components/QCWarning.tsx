@@ -8,9 +8,9 @@ interface QCWarningProps {
 }
 
 function getQualityBadgeLabel(quality: QCWarningProps['quality_warning']) {
-  if (quality === 'fail') return 'Low Reliability'
-  if (quality === 'warn') return 'Needs Review'
-  return 'Quality Check'
+  if (quality === 'fail') return '低可靠性'
+  if (quality === 'warn') return '需复查'
+  return '质量检查'
 }
 
 function getQualityClasses(quality: QCWarningProps['quality_warning']) {
@@ -88,7 +88,7 @@ export default function QCWarning({
             className="text-sm font-medium underline underline-offset-2 hover:opacity-80"
             aria-expanded={expanded}
           >
-            {expanded ? 'Hide Details' : 'View Details'}
+            {expanded ? '隐藏详情' : '查看详情'}
           </button>
 
           {expanded && (
@@ -101,14 +101,14 @@ export default function QCWarning({
                   className={`flex items-center justify-between rounded border p-2 ${getLeadQualityClasses(lead.quality)}`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">Lead {lead.lead_index}</span>
+                    <span className="text-sm font-medium">导联 {lead.lead_index}</span>
                     <span className="rounded px-1.5 py-0.5 text-xs uppercase">
                       {lead.quality}
                     </span>
                   </div>
                   <div className="flex gap-4 text-xs">
-                    <span>Coverage: {Math.round(lead.coverage * 100)}%</span>
-                    <span>Flatness: {Math.round(lead.flatness * 100)}%</span>
+                    <span>覆盖度：{Math.round(lead.coverage * 100)}%</span>
+                    <span>平坦度：{Math.round(lead.flatness * 100)}%</span>
                   </div>
                 </div>
               ))}

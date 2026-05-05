@@ -1,20 +1,15 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { NavigationDestination } from '@/types/navigation'
 import type { ChatSession } from '@/types/chat'
 import { useWorkspace } from '@/controllers/WorkspaceProvider'
 import ReportList from '@/components/ReportList'
 import ReportDetail from '@/components/ReportDetail'
 import EmptyReports from '@/components/EmptyReports'
 
-interface MyReportsPageProps {
-  onNavigate: (dest: NavigationDestination) => void
-}
-
 function hasMeaningfulReport(session: ChatSession): boolean {
   return session.messages.some((m) => m.type !== 'intro')
 }
 
-export default function MyReportsPage({ onNavigate }: MyReportsPageProps) {
+export default function MyReportsPage() {
   const { state, renameSession, deleteSession } = useWorkspace()
   const sessions = state.persisted.sessions
   const meaningfulSessions = sessions.filter(hasMeaningfulReport)
@@ -30,7 +25,6 @@ export default function MyReportsPage({ onNavigate }: MyReportsPageProps) {
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Auto-select first meaningful session when the list first populates
   useEffect(() => {
     if (meaningfulSessions.length > 0 && !selectedId) {
       setSelectedId(meaningfulSessions[0].id)
@@ -72,16 +66,14 @@ export default function MyReportsPage({ onNavigate }: MyReportsPageProps) {
     [deleteSession, selectedId, sessions],
   )
 
-  // Empty state
   if (meaningfulSessions.length === 0) {
     return (
       <div className="flex min-h-0 flex-1">
-        <EmptyReports onNavigate={onNavigate} />
+        <EmptyReports />
       </div>
     )
   }
 
-  // Mobile: toggle between list and detail
   if (isMobile) {
     if (showDetailMobile && selectedSession) {
       return (
@@ -107,7 +99,6 @@ export default function MyReportsPage({ onNavigate }: MyReportsPageProps) {
     )
   }
 
-  // Desktop: master/detail layout
   return (
     <div className="flex min-h-0 flex-1">
       <div className="w-80 shrink-0">

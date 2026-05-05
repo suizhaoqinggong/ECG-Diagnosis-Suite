@@ -1,10 +1,5 @@
-import type { NavigationDestination } from '@/types/navigation'
+import { NavLink } from 'react-router-dom'
 import { NAV_ITEMS } from '@/types/navigation'
-
-interface DesktopNavProps {
-  active: NavigationDestination
-  onChange: (dest: NavigationDestination) => void
-}
 
 function ReadIcon() {
   return (
@@ -52,7 +47,7 @@ const iconMap: Record<string, () => JSX.Element> = {
   account: AccountIcon,
 }
 
-export default function DesktopNav({ active, onChange }: DesktopNavProps) {
+export default function DesktopNav() {
   return (
     <nav
       className="flex h-screen w-64 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface-strong)]"
@@ -70,22 +65,23 @@ export default function DesktopNav({ active, onChange }: DesktopNavProps) {
       <div className="flex-1 space-y-1 px-3">
         {NAV_ITEMS.map((item) => {
           const Icon = iconMap[item.icon]
-          const isActive = active === item.id
           return (
-            <button
+            <NavLink
               key={item.id}
-              type="button"
-              onClick={() => onChange(item.id)}
-              aria-current={isActive ? 'page' : undefined}
-              className={`flex w-full items-center gap-3 rounded-[16px] px-4 py-3 text-left text-sm font-medium transition ${
-                isActive
-                  ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
-                  : 'text-[var(--ink-soft)] hover:bg-[var(--bg-muted)] hover:text-[var(--ink)]'
-              }`}
+              to={item.path}
+              end={item.path === '/'}
+              aria-current="page"
+              className={({ isActive }) =>
+                `flex w-full items-center gap-3 rounded-[16px] px-4 py-3 text-left text-sm font-medium transition ${
+                  isActive
+                    ? 'bg-[var(--accent-soft)] text-[var(--accent)]'
+                    : 'text-[var(--ink-soft)] hover:bg-[var(--bg-muted)] hover:text-[var(--ink)]'
+                }`
+              }
             >
               <Icon />
               <span>{item.label}</span>
-            </button>
+            </NavLink>
           )
         })}
       </div>

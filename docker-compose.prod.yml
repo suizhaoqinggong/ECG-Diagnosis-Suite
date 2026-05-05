@@ -28,6 +28,14 @@ services:
     networks:
       - ecg-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 64M
 
   frontend:
     build:
@@ -37,6 +45,14 @@ services:
     networks:
       - ecg-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
 
   backend:
     build:
@@ -81,6 +97,14 @@ services:
     networks:
       - ecg-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   db:
     image: mysql:8.4
@@ -105,6 +129,14 @@ services:
     networks:
       - ecg-network
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
 networks:
   ecg-network:

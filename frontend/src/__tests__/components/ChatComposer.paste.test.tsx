@@ -20,7 +20,7 @@ function pasteImage(imageType = 'image/png') {
   const onAttachFiles = vi.fn()
   render(<ChatComposer {...defaults} onAttachFiles={onAttachFiles} />)
 
-  const textarea = screen.getByPlaceholderText(/attach health files/i)
+  const textarea = screen.getByPlaceholderText(/上传健康文件/i)
   const imageFile = new File(['fake-image'], 'pasted.png', { type: imageType })
 
   const clipboardData = {
@@ -57,7 +57,7 @@ describe('ChatComposer – clipboard image paste', () => {
     const onAttachFiles = vi.fn()
     render(<ChatComposer {...defaults} onAttachFiles={onAttachFiles} />)
 
-    const textarea = screen.getByPlaceholderText(/attach health files/i)
+    const textarea = screen.getByPlaceholderText(/上传健康文件/i)
     const clipboardData = {
       items: [],
       types: ['text/plain'],
@@ -92,7 +92,7 @@ describe('ChatComposer – clipboard image paste', () => {
     const onAttachFiles = vi.fn()
     render(<ChatComposer {...defaults} onAttachFiles={onAttachFiles} />)
 
-    const textarea = screen.getByPlaceholderText(/attach health files/i)
+    const textarea = screen.getByPlaceholderText(/上传健康文件/i)
     const clipboardData = {
       items: [{ kind: 'file', type: 'image/png', getAsFile: () => null }],
       types: ['Files'],
@@ -111,7 +111,7 @@ describe('ChatComposer – clipboard image paste', () => {
     const onAttachFiles = vi.fn()
     render(<ChatComposer {...defaults} onAttachFiles={onAttachFiles} />)
 
-    const textarea = screen.getByPlaceholderText(/attach health files/i)
+    const textarea = screen.getByPlaceholderText(/上传健康文件/i)
     const validFile = new File(['valid-image'], 'ok.png', { type: 'image/png' })
     const clipboardData = {
       items: [
