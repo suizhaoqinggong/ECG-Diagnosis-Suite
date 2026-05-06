@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (npmmirror registry for faster installs in China)
+RUN npm config set registry https://registry.npmmirror.com && npm ci
 
 # Copy source code
 COPY . .

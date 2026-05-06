@@ -4,14 +4,19 @@ FROM python:3.11-slim AS builder
 # Set working directory
 WORKDIR /app
 
+# Use Tsinghua APT mirror for faster installs in China
+RUN sed -i 's/deb.debian.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apt/sources.list.d/debian.sources
+
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install into a wheel cache
+# Copy requirements and install into a wheel cache (Tsinghua PyPI mirror)
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir --user \
+    -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    -r requirements.txt
 
 # ---- Runtime stage ----
 FROM python:3.11-slim

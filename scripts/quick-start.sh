@@ -46,10 +46,12 @@ fi
 
 echo "安装Python依赖..."
 if command -v uv &> /dev/null; then
-    uv pip install --python "$PYTHON_BIN" -q -r requirements.txt
+    uv pip install --python "$PYTHON_BIN" -q \
+        --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+        -r requirements.txt
 else
-    "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel
-    "$PYTHON_BIN" -m pip install -r requirements.txt
+    "$PYTHON_BIN" -m pip install --upgrade pip setuptools wheel -i https://pypi.tuna.tsinghua.edu.cn/simple
+    "$PYTHON_BIN" -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 fi
 
 # Setup frontend
@@ -59,7 +61,7 @@ cd ../frontend
 
 if [ ! -d "node_modules" ]; then
     echo "安装前端依赖..."
-    npm install
+    npm config set registry https://registry.npmmirror.com && npm install
 fi
 
 # Create .env files if not exist

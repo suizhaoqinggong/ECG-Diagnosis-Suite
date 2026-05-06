@@ -21,10 +21,45 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  cp "$ENV_EXAMPLE" "$ENV_FILE"
-  echo "Created $ENV_FILE from template."
-  echo "Edit it first, then rerun this script."
-  exit 1
+  echo "No .env.production found. Auto-generating with sensible defaults..."
+
+  DETECTED_IP=""
+  if command -v curl >/dev/null 2>&1; then
+    DETECTED_IP="$(curl -s --connect-timeout 5 ifconfig.me 2>/dev/null || true)"
+  fi
+  DOMAIN="${DETECTED_IP:-localhost}"
+
+  cat > "$ENV_FILE" <<EOF
+APP_DOMAIN=${DOMAIN}
+CLIENT_MAX_BODY_SIZE=20m
+ENABLE_TLS=False
+TLS_CERT_FILENAME=
+TLS_KEY_FILENAME=
+BACKEND_DEBUG=False
+BACKEND_SECRET_KEY=$(openssl rand -hex 32)
+BACKEND_API_DOCS_ENABLED=True
+BACKEND_DEVICE=cpu
+BACKEND_CONFIDENCE_THRESHOLD=0.7
+BACKEND_MODEL_CHECKPOINT_PATH=models/checkpoints/best.ckpt
+BACKEND_MODEL_TEMPERATURE=0.5
+BACKEND_MODEL_NORMAL_BIAS=1.8
+BACKEND_CORS_ORIGINS=["*"]
+BACKEND_ALLOWED_HOSTS=["*"]
+BACKEND_LLM_REPORT_ENABLED=False
+BACKEND_LLM_REPORT_PROVIDER=openai
+BACKEND_OPENAI_API_KEY=
+BACKEND_OPENAI_BASE_URL=https://api.openai.com/v1
+BACKEND_OPENAI_REPORT_MODEL=gpt-4o-mini
+BACKEND_OPENAI_TIMEOUT_SECONDS=30
+MYSQL_DATABASE=ecg_db
+MYSQL_USER=ecg
+MYSQL_PASSWORD=$(openssl rand -hex 16)
+MYSQL_ROOT_PASSWORD=$(openssl rand -hex 16)
+EOF
+
+  echo "Generated $ENV_FILE with auto-secrets."
+  echo "Review it later for production hardening."
+  echo ""
 fi
 
 set -a
@@ -53,7 +88,10 @@ mkdir -p \
   "$PROJECT_ROOT/deploy/certs"
 
 if [[ ! -f "$PROJECT_ROOT/models/checkpoints/best.ckpt" && ! -f "$PROJECT_ROOT/models/weights/best.ckpt" ]]; then
-  echo "Warning: no model checkpoint found under models/checkpoints or models/weights."
+  echo "WARNING: No model checkpoint found."
+  echo "  Place best.ckpt under models/checkpoints/ or models/weights/"
+  echo "  Or set BACKEND_MODEL_CHECKPOINT_PATH in .env.production"
+  echo ""
 fi
 
 echo "Building application images..."
@@ -84,4 +122,23 @@ echo "Running database migrations..."
 
 echo "Starting application services..."
 "${COMPOSE[@]}" up -d backend frontend reverse-proxy
+
+echo "Waiting for backend to become healthy..."
+for _ in {1..60}; do
+  backend_status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' ecg-backend 2>/dev/null || true)"
+  if [[ "$backend_status" == "healthy" ]]; then
+    echo "Backend is healthy."
+    break
+  fi
+  sleep 3
+done
+
+echo ""
+echo "===== Deployment Complete ====="
+echo ""
 "${COMPOSE[@]}" ps
+echo ""
+if [[ "${BACKEND_API_DOCS_ENABLED:-False}" == "True" ]]; then
+  echo "API docs: http://${APP_DOMAIN:-localhost}/api/docs"
+fi
+echo "Health check: curl http://${APP_DOMAIN:-localhost}/api/health"
