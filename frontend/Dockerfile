@@ -1,14 +1,12 @@
 # Dockerfile for React frontend
-FROM node:18-alpine as builder
+FROM node:22-alpine as builder
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
+COPY package.json ./
 
-# Install dependencies (npmmirror registry for faster installs in China)
-RUN npm config set registry https://registry.npmmirror.com && npm ci
+RUN npm config set registry https://registry.npmmirror.com && npm install
 
 # Copy source code
 COPY . .

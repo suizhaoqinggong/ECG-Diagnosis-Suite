@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir --user \
     -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    --default-timeout=300 \
     -r requirements.txt
 
 # ---- Runtime stage ----
