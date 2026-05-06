@@ -33,8 +33,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 async def lifespan(_: FastAPI):
     settings.ensure_runtime_dirs()
     try:
-        if settings.is_production:
-            get_model_service()
         await init_db()
     except Exception as exc:
         mark_db_unavailable(exc)
@@ -42,6 +40,15 @@ async def lifespan(_: FastAPI):
             logger.exception("Startup failed in production mode")
             raise
         logger.warning("Database initialization skipped")
+
+    import threading
+    def _warm_model() -> None:
+        try:
+            get_model_service()
+        except Exception:
+            logger.exception("Model warm-up failed, inference unavailable")
+    threading.Thread(target=_warm_model, daemon=True).start()
+
     yield
     # Shutdown: dispose database engine
     from app.core.database import engine
