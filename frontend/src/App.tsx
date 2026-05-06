@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast'
 import ErrorBoundary from './components/ErrorBoundary'
 import AppLayout from './components/AppLayout'
 import WorkspaceLayout from './components/WorkspaceLayout'
+import DonationButton from './components/DonationButton'
 import ReadReportPage from './pages/ReadReportPage'
 import UploadECGPage from './pages/UploadECGPage'
 import MyReportsPage from './pages/MyReportsPage'
@@ -30,6 +31,7 @@ function App() {
                 </Route>
               </Routes>
             </div>
+            <DonationButton />
           </BrowserRouter>
         </WorkspaceProvider>
         <Toaster
