@@ -59,6 +59,8 @@ EOF
 
   echo "Generated $ENV_FILE with auto-secrets."
   echo "Review it later for production hardening."
+
+  FRESH_ENV=true
   echo ""
 fi
 
@@ -92,6 +94,11 @@ if [[ ! -f "$PROJECT_ROOT/models/checkpoints/best.ckpt" && ! -f "$PROJECT_ROOT/m
   echo "  Place best.ckpt under models/checkpoints/ or models/weights/"
   echo "  Or set BACKEND_MODEL_CHECKPOINT_PATH in .env.production"
   echo ""
+fi
+
+if [[ "${FRESH_ENV:-false}" == "true" ]]; then
+  echo "New config detected — cleaning any stale database volume..."
+  docker compose -f "$COMPOSE_FILE" down -v 2>/dev/null || true
 fi
 
 echo "Building application images..."
